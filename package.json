@@ -1,0 +1,38 @@
+{
+  "name": "hdf5-indexed-reader",
+  "version": "0.1.0",
+  "description": "An extension of jsfive for fast, on-demand reading of remote hdf5 files",
+  "module": "./dist/hdf5-indexed-reader.esm.js",
+  "scripts": {
+    "build": "npx rollup --config --bundleConfigAsCjs",
+    "test": "mocha -u tdd -r esm"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jrobinsohdf5-indexed-reader"
+  },
+  "keywords": [
+    "hdf5",
+    "javascript",
+    "es6",
+    "browser"
+  ],
+  "author": "James Robinson",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jrobinsohdf5-indexed-reader/issues"
+  },
+  "homepage": "https://github.com/jrobinsohdf5-indexed-reader",
+
+  "devDependencies": {
+    "node": "^19.4.0",
+    "node-fetch": "^2.6.0",
+    "chai": "^4.2.0",
+    "esm": "^3.2.25",
+    "mocha": "^8.1.3",
+    "rollup": "^3.10.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
