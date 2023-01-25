@@ -1,6 +1,6 @@
 * hdf5-indexedReader
 
-Module build on the jsfive project (https://github.com/usnistgov/jsfive) for efficient querying of HDF5 files over the
+Module built on the jsfive project (https://github.com/usnistgov/jsfive) for efficient querying of HDF5 files over the
 web. 
 
 hdf5-indexedReader loads groups and datasets on demand as needed,  enabling support of large files that would 
