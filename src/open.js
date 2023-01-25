@@ -28,7 +28,7 @@ async function openH5File(options) {
 
     let fileReader = getReaderFor(options)
     if (index) {
-        fileReader = new BufferedFile({file: fileReader})
+        fileReader = new BufferedFile({file: fileReader, size: 4000})
     }
     const asyncBuffer = new AsyncBuffer(fileReader)
 
