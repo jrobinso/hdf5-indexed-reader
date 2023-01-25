@@ -6,41 +6,34 @@ import {File, Group} from "./jsfive/index.mjs"
 
 async function openH5File(options) {
 
-    let hasIndex = false
     let indexReader
+    let index
+    let filename
     if (options.indexURL) {
         indexReader = new RemoteFile({url: options.indexURL})
+        filename = getFilename(options.indexURL)
     } else if (options.indexPath) {
         indexReader = new NodeLocalFile({path: options.indexPath})
+        filename = getFilename(options.indexPath)
     } else if (options.indexFile) {
         indexReader = new BrowserLocalFile({file: options.file})
+        filename = options.file.name
     }
     if (indexReader) {
         const indexFileContents = await indexReader.read()
         const indexFileJson = new TextDecoder().decode(indexFileContents)
-        const index = JSON.parse(indexFileJson)
+        index = JSON.parse(indexFileJson)
 
-        Group.prototype.init = async function(dataobjects) {
-            if(index && this.name in index) {
-                this._links = index[this.name]
-            } else {
-                this._links = await dataobjects.get_links();
-            }
-            this._dataobjects = dataobjects;
-            this._attrs = null;  // cached property
-            this._keys = null;
-        }
-        hasIndex = true
     }
 
     let fileReader = getReaderFor(options)
-    if (hasIndex) {
+    if (index) {
         fileReader = new BufferedFile({file: fileReader})
     }
     const asyncBuffer = new AsyncBuffer(fileReader)
 
     // Create HDF5 file
-    const hdfFile = new File(asyncBuffer, "spleen_1chr1rep.cndb")
+    const hdfFile = new File(asyncBuffer, filename, {index})
     await hdfFile.ready
     return hdfFile
 
@@ -52,9 +45,9 @@ function getReaderFor(options) {
         return new RemoteFile(options)
     } else if (options.path) { // A file path
         return new NodeLocalFile(options)
-    }  else if (options.file) { // A Browser file blob
+    } else if (options.file) { // A Browser file blob
         return new BrowserLocalFile(options.file)
-    }else {
+    } else {
         throw Error("One of 'url', 'path (node only)', or 'file (browser only)' must be specified")
     }
 }
@@ -66,12 +59,15 @@ class AsyncBuffer {
     constructor(fileReader) {
         this.fileReader = fileReader
     }
+
     async slice(start, end) {
         return this.fileReader.read(start, end - start)
     }
 }
 
-
-
+function getFilename(pathOrURL) {
+    const idx = pathOrURL.lastIndexOf("/")
+    return idx > 0 ? pathOrURL.substring(idx + 1) : pathOrURL
+}
 
 export {openH5File}

@@ -1,5 +1,6 @@
-This directory contains a built bundle of [jsfive](https://github.com/usnistgov/jsfive) from the "async" branch, 
-specifically commit #18d36e27.  
+This directory contains a built bundle of [jsfive](https://github.com/usnistgov/jsfive) from a fork at commit 
+id 18d36e27.  The async branch was modified to use the index if present.  Code is available at 
+https://github.com/jrobinso/jsfive/tree/indexed-reader  
 
 License:
 

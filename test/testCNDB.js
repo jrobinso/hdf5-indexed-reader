@@ -1,5 +1,6 @@
 import {assert} from 'chai'
 import {openH5File} from "../src/open.js"
+import {Dataset} from "../src/jsfive/index.mjs"
 
 class BufferWrapper {
     constructor(buffer) {
@@ -83,17 +84,53 @@ suite("test", function () {
         //console.log(group.keys)
 
         console.log("Get first dataset")
+        const time1 = Date.now()
         const dataset1 = await group.get('11')
         const values1 = await dataset1.value
-        //console.log(values1.length)
+        console.log(`First dataset (${values1.length} elements) loaded in  ${Date.now() - time1} ms`)
 
         console.log("Start second dataset")
         const time2 = Date.now()
         const dataset2 = await group.get('11')
         const values2 = await dataset2.value
-        //console.log(values2.length)
+        console.log(`Second dataset (${values2.length} elements) loaded in  ${Date.now() - time2} ms`)
 
         console.log(`Second dataset loaded in  ${Date.now() - time2} ms`)
+
+        console.log(`cndb - use index -- 6 GB remote finished in ${Date.now() - startTime} ms`)
+
+    })
+
+    test("cndb - use index -- 127 GB remote", async function () {
+
+        this.timeout(100000)
+        const startTime = Date.now()
+
+        const config = {
+            indexPath: require.resolve("./spleen_full.index.json"),
+            url: "https://www.dropbox.com/s/o0evglziffzlqzo/spleen_full.cndb?dl=0"
+        }
+
+        console.log("Open file")
+        const hdfFile = await openH5File(config)
+        console.log(`File opened in ${Date.now() - startTime} ms`)
+
+
+        console.log("Get spatial position group")
+        const group = await hdfFile.get('/replica10_chr16/spatial_position')
+        //console.log(group.keys)
+
+        console.log("Get first dataset")
+        const time1 = Date.now()
+        const dataset1 = await group.get('11')
+        const values1 = await dataset1.value
+        console.log(`First dataset (${values1.length} elements) loaded in  ${Date.now() - time1} ms`)
+
+        console.log("Start second dataset")
+        const time2 = Date.now()
+        const dataset2 = await group.get('11')
+        const values2 = await dataset2.value
+        console.log(`Second dataset (${values2.length} elements) loaded in  ${Date.now() - time2} ms`)
 
         console.log(`cndb - use index -- 6 GB remote finished in ${Date.now() - startTime} ms`)
 

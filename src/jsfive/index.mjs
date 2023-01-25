@@ -538,8 +538,7 @@ var gen_codes = (tree, max_code, bl_count) => {
   let bits;
   let n;
   for (bits = 1; bits <= MAX_BITS$1; bits++) {
-    code = code + bl_count[bits - 1] << 1;
-    next_code[bits] = code;
+    next_code[bits] = code = code + bl_count[bits - 1] << 1;
   }
   for (n = 0; n <= max_code; n++) {
     let len = tree[n * 2 + 1];
@@ -624,7 +623,7 @@ var init_block = (s) => {
   }
   s.dyn_ltree[END_BLOCK * 2] = 1;
   s.opt_len = s.static_len = 0;
-  s.sym_next = s.matches = 0;
+  s.last_lit = s.matches = 0;
 };
 var bi_windup = (s) => {
   if (s.bi_valid > 8) {
@@ -634,6 +633,15 @@ var bi_windup = (s) => {
   }
   s.bi_buf = 0;
   s.bi_valid = 0;
+};
+var copy_block = (s, buf, len, header) => {
+  bi_windup(s);
+  if (header) {
+    put_short(s, len);
+    put_short(s, ~len);
+  }
+  s.pending_buf.set(s.window.subarray(buf, buf + len), s.pending);
+  s.pending += len;
 };
 var smaller = (tree, n, m, depth) => {
   const _n2 = n * 2;
@@ -659,14 +667,14 @@ var pqdownheap = (s, tree, k) => {
 var compress_block = (s, ltree, dtree) => {
   let dist;
   let lc;
-  let sx = 0;
+  let lx = 0;
   let code;
   let extra;
-  if (s.sym_next !== 0) {
+  if (s.last_lit !== 0) {
     do {
-      dist = s.pending_buf[s.sym_buf + sx++] & 255;
-      dist += (s.pending_buf[s.sym_buf + sx++] & 255) << 8;
-      lc = s.pending_buf[s.sym_buf + sx++];
+      dist = s.pending_buf[s.d_buf + lx * 2] << 8 | s.pending_buf[s.d_buf + lx * 2 + 1];
+      lc = s.pending_buf[s.l_buf + lx];
+      lx++;
       if (dist === 0) {
         send_code(s, lc, ltree);
       } else {
@@ -686,7 +694,7 @@ var compress_block = (s, ltree, dtree) => {
           send_bits(s, dist, extra);
         }
       }
-    } while (sx < s.sym_next);
+    } while (lx < s.last_lit);
   }
   send_code(s, END_BLOCK, ltree);
 };
@@ -857,10 +865,10 @@ var send_all_trees = (s, lcodes, dcodes, blcodes) => {
   send_tree(s, s.dyn_dtree, dcodes - 1);
 };
 var detect_data_type = (s) => {
-  let block_mask = 4093624447;
+  let black_mask = 4093624447;
   let n;
-  for (n = 0; n <= 31; n++, block_mask >>>= 1) {
-    if (block_mask & 1 && s.dyn_ltree[n * 2] !== 0) {
+  for (n = 0; n <= 31; n++, black_mask >>>= 1) {
+    if (black_mask & 1 && s.dyn_ltree[n * 2] !== 0) {
       return Z_BINARY;
     }
   }
@@ -889,13 +897,7 @@ var _tr_init$1 = (s) => {
 };
 var _tr_stored_block$1 = (s, buf, stored_len, last) => {
   send_bits(s, (STORED_BLOCK << 1) + (last ? 1 : 0), 3);
-  bi_windup(s);
-  put_short(s, stored_len);
-  put_short(s, ~stored_len);
-  if (stored_len) {
-    s.pending_buf.set(s.window.subarray(buf, buf + stored_len), s.pending);
-  }
-  s.pending += stored_len;
+  copy_block(s, buf, stored_len, true);
 };
 var _tr_align$1 = (s) => {
   send_bits(s, STATIC_TREES << 1, 3);
@@ -936,9 +938,10 @@ var _tr_flush_block$1 = (s, buf, stored_len, last) => {
   }
 };
 var _tr_tally$1 = (s, dist, lc) => {
-  s.pending_buf[s.sym_buf + s.sym_next++] = dist;
-  s.pending_buf[s.sym_buf + s.sym_next++] = dist >> 8;
-  s.pending_buf[s.sym_buf + s.sym_next++] = lc;
+  s.pending_buf[s.d_buf + s.last_lit * 2] = dist >>> 8 & 255;
+  s.pending_buf[s.d_buf + s.last_lit * 2 + 1] = dist & 255;
+  s.pending_buf[s.l_buf + s.last_lit] = lc & 255;
+  s.last_lit++;
   if (dist === 0) {
     s.dyn_ltree[lc * 2]++;
   } else {
@@ -947,7 +950,7 @@ var _tr_tally$1 = (s, dist, lc) => {
     s.dyn_ltree[(_length_code[lc] + LITERALS$1 + 1) * 2]++;
     s.dyn_dtree[d_code(dist) * 2]++;
   }
-  return s.sym_next === s.sym_end;
+  return s.last_lit === s.lit_bufsize - 1;
 };
 var _tr_init_1 = _tr_init$1;
 var _tr_stored_block_1 = _tr_stored_block$1;
@@ -1075,7 +1078,6 @@ var MAX_MATCH = 258;
 var MIN_LOOKAHEAD = MAX_MATCH + MIN_MATCH + 1;
 var PRESET_DICT = 32;
 var INIT_STATE = 42;
-var GZIP_STATE = 57;
 var EXTRA_STATE = 69;
 var NAME_STATE = 73;
 var COMMENT_STATE = 91;
@@ -1092,30 +1094,13 @@ var err = (strm, errorCode) => {
   return errorCode;
 };
 var rank = (f) => {
-  return f * 2 - (f > 4 ? 9 : 0);
+  return (f << 1) - (f > 4 ? 9 : 0);
 };
 var zero = (buf) => {
   let len = buf.length;
   while (--len >= 0) {
     buf[len] = 0;
   }
-};
-var slide_hash = (s) => {
-  let n, m;
-  let p;
-  let wsize = s.w_size;
-  n = s.hash_size;
-  p = n;
-  do {
-    m = s.head[--p];
-    s.head[p] = m >= wsize ? m - wsize : 0;
-  } while (--n);
-  n = wsize;
-  p = n;
-  do {
-    m = s.prev[--p];
-    s.prev[p] = m >= wsize ? m - wsize : 0;
-  } while (--n);
 };
 var HASH_ZLIB = (s, prev, data) => (prev << s.hash_shift ^ data) & s.hash_mask;
 var HASH = HASH_ZLIB;
@@ -1217,18 +1202,26 @@ var longest_match = (s, cur_match) => {
 };
 var fill_window = (s) => {
   const _w_size = s.w_size;
-  let n, more, str;
+  let p, n, m, more, str;
   do {
     more = s.window_size - s.lookahead - s.strstart;
     if (s.strstart >= _w_size + (_w_size - MIN_LOOKAHEAD)) {
-      s.window.set(s.window.subarray(_w_size, _w_size + _w_size - more), 0);
+      s.window.set(s.window.subarray(_w_size, _w_size + _w_size), 0);
       s.match_start -= _w_size;
       s.strstart -= _w_size;
       s.block_start -= _w_size;
-      if (s.insert > s.strstart) {
-        s.insert = s.strstart;
-      }
-      slide_hash(s);
+      n = s.hash_size;
+      p = n;
+      do {
+        m = s.head[--p];
+        s.head[p] = m >= _w_size ? m - _w_size : 0;
+      } while (--n);
+      n = _w_size;
+      p = n;
+      do {
+        m = s.prev[--p];
+        s.prev[p] = m >= _w_size ? m - _w_size : 0;
+      } while (--n);
       more += _w_size;
     }
     if (s.strm.avail_in === 0) {
@@ -1254,120 +1247,53 @@ var fill_window = (s) => {
   } while (s.lookahead < MIN_LOOKAHEAD && s.strm.avail_in !== 0);
 };
 var deflate_stored = (s, flush) => {
-  let min_block = s.pending_buf_size - 5 > s.w_size ? s.w_size : s.pending_buf_size - 5;
-  let len, left, have, last = 0;
-  let used = s.strm.avail_in;
-  do {
-    len = 65535;
-    have = s.bi_valid + 42 >> 3;
-    if (s.strm.avail_out < have) {
-      break;
-    }
-    have = s.strm.avail_out - have;
-    left = s.strstart - s.block_start;
-    if (len > left + s.strm.avail_in) {
-      len = left + s.strm.avail_in;
-    }
-    if (len > have) {
-      len = have;
-    }
-    if (len < min_block && (len === 0 && flush !== Z_FINISH$3 || flush === Z_NO_FLUSH$2 || len !== left + s.strm.avail_in)) {
-      break;
-    }
-    last = flush === Z_FINISH$3 && len === left + s.strm.avail_in ? 1 : 0;
-    _tr_stored_block(s, 0, 0, last);
-    s.pending_buf[s.pending - 4] = len;
-    s.pending_buf[s.pending - 3] = len >> 8;
-    s.pending_buf[s.pending - 2] = ~len;
-    s.pending_buf[s.pending - 1] = ~len >> 8;
-    flush_pending(s.strm);
-    if (left) {
-      if (left > len) {
-        left = len;
-      }
-      s.strm.output.set(s.window.subarray(s.block_start, s.block_start + left), s.strm.next_out);
-      s.strm.next_out += left;
-      s.strm.avail_out -= left;
-      s.strm.total_out += left;
-      s.block_start += left;
-      len -= left;
-    }
-    if (len) {
-      read_buf(s.strm, s.strm.output, s.strm.next_out, len);
-      s.strm.next_out += len;
-      s.strm.avail_out -= len;
-      s.strm.total_out += len;
-    }
-  } while (last === 0);
-  used -= s.strm.avail_in;
-  if (used) {
-    if (used >= s.w_size) {
-      s.matches = 2;
-      s.window.set(s.strm.input.subarray(s.strm.next_in - s.w_size, s.strm.next_in), 0);
-      s.strstart = s.w_size;
-      s.insert = s.strstart;
-    } else {
-      if (s.window_size - s.strstart <= used) {
-        s.strstart -= s.w_size;
-        s.window.set(s.window.subarray(s.w_size, s.w_size + s.strstart), 0);
-        if (s.matches < 2) {
-          s.matches++;
-        }
-        if (s.insert > s.strstart) {
-          s.insert = s.strstart;
-        }
-      }
-      s.window.set(s.strm.input.subarray(s.strm.next_in - used, s.strm.next_in), s.strstart);
-      s.strstart += used;
-      s.insert += used > s.w_size - s.insert ? s.w_size - s.insert : used;
-    }
-    s.block_start = s.strstart;
+  let max_block_size = 65535;
+  if (max_block_size > s.pending_buf_size - 5) {
+    max_block_size = s.pending_buf_size - 5;
   }
-  if (s.high_water < s.strstart) {
-    s.high_water = s.strstart;
+  for (; ; ) {
+    if (s.lookahead <= 1) {
+      fill_window(s);
+      if (s.lookahead === 0 && flush === Z_NO_FLUSH$2) {
+        return BS_NEED_MORE;
+      }
+      if (s.lookahead === 0) {
+        break;
+      }
+    }
+    s.strstart += s.lookahead;
+    s.lookahead = 0;
+    const max_start = s.block_start + max_block_size;
+    if (s.strstart === 0 || s.strstart >= max_start) {
+      s.lookahead = s.strstart - max_start;
+      s.strstart = max_start;
+      flush_block_only(s, false);
+      if (s.strm.avail_out === 0) {
+        return BS_NEED_MORE;
+      }
+    }
+    if (s.strstart - s.block_start >= s.w_size - MIN_LOOKAHEAD) {
+      flush_block_only(s, false);
+      if (s.strm.avail_out === 0) {
+        return BS_NEED_MORE;
+      }
+    }
   }
-  if (last) {
+  s.insert = 0;
+  if (flush === Z_FINISH$3) {
+    flush_block_only(s, true);
+    if (s.strm.avail_out === 0) {
+      return BS_FINISH_STARTED;
+    }
     return BS_FINISH_DONE;
   }
-  if (flush !== Z_NO_FLUSH$2 && flush !== Z_FINISH$3 && s.strm.avail_in === 0 && s.strstart === s.block_start) {
-    return BS_BLOCK_DONE;
-  }
-  have = s.window_size - s.strstart;
-  if (s.strm.avail_in > have && s.block_start >= s.w_size) {
-    s.block_start -= s.w_size;
-    s.strstart -= s.w_size;
-    s.window.set(s.window.subarray(s.w_size, s.w_size + s.strstart), 0);
-    if (s.matches < 2) {
-      s.matches++;
-    }
-    have += s.w_size;
-    if (s.insert > s.strstart) {
-      s.insert = s.strstart;
+  if (s.strstart > s.block_start) {
+    flush_block_only(s, false);
+    if (s.strm.avail_out === 0) {
+      return BS_NEED_MORE;
     }
   }
-  if (have > s.strm.avail_in) {
-    have = s.strm.avail_in;
-  }
-  if (have) {
-    read_buf(s.strm, s.window, s.strstart, have);
-    s.strstart += have;
-    s.insert += have > s.w_size - s.insert ? s.w_size - s.insert : have;
-  }
-  if (s.high_water < s.strstart) {
-    s.high_water = s.strstart;
-  }
-  have = s.bi_valid + 42 >> 3;
-  have = s.pending_buf_size - have > 65535 ? 65535 : s.pending_buf_size - have;
-  min_block = have > s.w_size ? s.w_size : have;
-  left = s.strstart - s.block_start;
-  if (left >= min_block || (left || flush === Z_FINISH$3) && flush !== Z_NO_FLUSH$2 && s.strm.avail_in === 0 && left <= have) {
-    len = left > have ? have : left;
-    last = flush === Z_FINISH$3 && s.strm.avail_in === 0 && len === left ? 1 : 0;
-    _tr_stored_block(s, s.block_start, len, last);
-    s.block_start += len;
-    flush_pending(s.strm);
-  }
-  return last ? BS_FINISH_STARTED : BS_NEED_MORE;
+  return BS_NEED_MORE;
 };
 var deflate_fast = (s, flush) => {
   let hash_head;
@@ -1429,7 +1355,7 @@ var deflate_fast = (s, flush) => {
     }
     return BS_FINISH_DONE;
   }
-  if (s.sym_next) {
+  if (s.last_lit) {
     flush_block_only(s, false);
     if (s.strm.avail_out === 0) {
       return BS_NEED_MORE;
@@ -1515,7 +1441,7 @@ var deflate_slow = (s, flush) => {
     }
     return BS_FINISH_DONE;
   }
-  if (s.sym_next) {
+  if (s.last_lit) {
     flush_block_only(s, false);
     if (s.strm.avail_out === 0) {
       return BS_NEED_MORE;
@@ -1577,7 +1503,7 @@ var deflate_rle = (s, flush) => {
     }
     return BS_FINISH_DONE;
   }
-  if (s.sym_next) {
+  if (s.last_lit) {
     flush_block_only(s, false);
     if (s.strm.avail_out === 0) {
       return BS_NEED_MORE;
@@ -1616,7 +1542,7 @@ var deflate_huff = (s, flush) => {
     }
     return BS_FINISH_DONE;
   }
-  if (s.sym_next) {
+  if (s.last_lit) {
     flush_block_only(s, false);
     if (s.strm.avail_out === 0) {
       return BS_NEED_MORE;
@@ -1712,10 +1638,10 @@ function DeflateState() {
   this.heap_max = 0;
   this.depth = new Uint16Array(2 * L_CODES + 1);
   zero(this.depth);
-  this.sym_buf = 0;
+  this.l_buf = 0;
   this.lit_bufsize = 0;
-  this.sym_next = 0;
-  this.sym_end = 0;
+  this.last_lit = 0;
+  this.d_buf = 0;
   this.opt_len = 0;
   this.static_len = 0;
   this.matches = 0;
@@ -1723,18 +1649,8 @@ function DeflateState() {
   this.bi_buf = 0;
   this.bi_valid = 0;
 }
-var deflateStateCheck = (strm) => {
-  if (!strm) {
-    return 1;
-  }
-  const s = strm.state;
-  if (!s || s.strm !== strm || s.status !== INIT_STATE && s.status !== GZIP_STATE && s.status !== EXTRA_STATE && s.status !== NAME_STATE && s.status !== COMMENT_STATE && s.status !== HCRC_STATE && s.status !== BUSY_STATE && s.status !== FINISH_STATE) {
-    return 1;
-  }
-  return 0;
-};
 var deflateResetKeep = (strm) => {
-  if (deflateStateCheck(strm)) {
+  if (!strm || !strm.state) {
     return err(strm, Z_STREAM_ERROR$2);
   }
   strm.total_in = strm.total_out = 0;
@@ -1745,9 +1661,9 @@ var deflateResetKeep = (strm) => {
   if (s.wrap < 0) {
     s.wrap = -s.wrap;
   }
-  s.status = s.wrap === 2 ? GZIP_STATE : s.wrap ? INIT_STATE : BUSY_STATE;
+  s.status = s.wrap ? INIT_STATE : BUSY_STATE;
   strm.adler = s.wrap === 2 ? 0 : 1;
-  s.last_flush = -2;
+  s.last_flush = Z_NO_FLUSH$2;
   _tr_init(s);
   return Z_OK$3;
 };
@@ -1759,7 +1675,10 @@ var deflateReset = (strm) => {
   return ret;
 };
 var deflateSetHeader = (strm, head) => {
-  if (deflateStateCheck(strm) || strm.state.wrap !== 2) {
+  if (!strm || !strm.state) {
+    return Z_STREAM_ERROR$2;
+  }
+  if (strm.state.wrap !== 2) {
     return Z_STREAM_ERROR$2;
   }
   strm.state.gzhead = head;
@@ -1780,7 +1699,7 @@ var deflateInit2 = (strm, level, method, windowBits, memLevel, strategy) => {
     wrap = 2;
     windowBits -= 16;
   }
-  if (memLevel < 1 || memLevel > MAX_MEM_LEVEL || method !== Z_DEFLATED$2 || windowBits < 8 || windowBits > 15 || level < 0 || level > 9 || strategy < 0 || strategy > Z_FIXED || windowBits === 8 && wrap !== 1) {
+  if (memLevel < 1 || memLevel > MAX_MEM_LEVEL || method !== Z_DEFLATED$2 || windowBits < 8 || windowBits > 15 || level < 0 || level > 9 || strategy < 0 || strategy > Z_FIXED) {
     return err(strm, Z_STREAM_ERROR$2);
   }
   if (windowBits === 8) {
@@ -1789,7 +1708,6 @@ var deflateInit2 = (strm, level, method, windowBits, memLevel, strategy) => {
   const s = new DeflateState();
   strm.state = s;
   s.strm = strm;
-  s.status = INIT_STATE;
   s.wrap = wrap;
   s.gzhead = null;
   s.w_bits = windowBits;
@@ -1805,8 +1723,8 @@ var deflateInit2 = (strm, level, method, windowBits, memLevel, strategy) => {
   s.lit_bufsize = 1 << memLevel + 6;
   s.pending_buf_size = s.lit_bufsize * 4;
   s.pending_buf = new Uint8Array(s.pending_buf_size);
-  s.sym_buf = s.lit_bufsize;
-  s.sym_end = (s.lit_bufsize - 1) * 3;
+  s.d_buf = 1 * s.lit_bufsize;
+  s.l_buf = (1 + 2) * s.lit_bufsize;
   s.level = level;
   s.strategy = strategy;
   s.method = method;
@@ -1816,15 +1734,184 @@ var deflateInit = (strm, level) => {
   return deflateInit2(strm, level, Z_DEFLATED$2, MAX_WBITS$1, DEF_MEM_LEVEL, Z_DEFAULT_STRATEGY$1);
 };
 var deflate$2 = (strm, flush) => {
-  if (deflateStateCheck(strm) || flush > Z_BLOCK$1 || flush < 0) {
+  let beg, val;
+  if (!strm || !strm.state || flush > Z_BLOCK$1 || flush < 0) {
     return strm ? err(strm, Z_STREAM_ERROR$2) : Z_STREAM_ERROR$2;
   }
   const s = strm.state;
-  if (!strm.output || strm.avail_in !== 0 && !strm.input || s.status === FINISH_STATE && flush !== Z_FINISH$3) {
+  if (!strm.output || !strm.input && strm.avail_in !== 0 || s.status === FINISH_STATE && flush !== Z_FINISH$3) {
     return err(strm, strm.avail_out === 0 ? Z_BUF_ERROR$1 : Z_STREAM_ERROR$2);
   }
+  s.strm = strm;
   const old_flush = s.last_flush;
   s.last_flush = flush;
+  if (s.status === INIT_STATE) {
+    if (s.wrap === 2) {
+      strm.adler = 0;
+      put_byte(s, 31);
+      put_byte(s, 139);
+      put_byte(s, 8);
+      if (!s.gzhead) {
+        put_byte(s, 0);
+        put_byte(s, 0);
+        put_byte(s, 0);
+        put_byte(s, 0);
+        put_byte(s, 0);
+        put_byte(s, s.level === 9 ? 2 : s.strategy >= Z_HUFFMAN_ONLY || s.level < 2 ? 4 : 0);
+        put_byte(s, OS_CODE);
+        s.status = BUSY_STATE;
+      } else {
+        put_byte(s, (s.gzhead.text ? 1 : 0) + (s.gzhead.hcrc ? 2 : 0) + (!s.gzhead.extra ? 0 : 4) + (!s.gzhead.name ? 0 : 8) + (!s.gzhead.comment ? 0 : 16));
+        put_byte(s, s.gzhead.time & 255);
+        put_byte(s, s.gzhead.time >> 8 & 255);
+        put_byte(s, s.gzhead.time >> 16 & 255);
+        put_byte(s, s.gzhead.time >> 24 & 255);
+        put_byte(s, s.level === 9 ? 2 : s.strategy >= Z_HUFFMAN_ONLY || s.level < 2 ? 4 : 0);
+        put_byte(s, s.gzhead.os & 255);
+        if (s.gzhead.extra && s.gzhead.extra.length) {
+          put_byte(s, s.gzhead.extra.length & 255);
+          put_byte(s, s.gzhead.extra.length >> 8 & 255);
+        }
+        if (s.gzhead.hcrc) {
+          strm.adler = crc32_1(strm.adler, s.pending_buf, s.pending, 0);
+        }
+        s.gzindex = 0;
+        s.status = EXTRA_STATE;
+      }
+    } else {
+      let header = Z_DEFLATED$2 + (s.w_bits - 8 << 4) << 8;
+      let level_flags = -1;
+      if (s.strategy >= Z_HUFFMAN_ONLY || s.level < 2) {
+        level_flags = 0;
+      } else if (s.level < 6) {
+        level_flags = 1;
+      } else if (s.level === 6) {
+        level_flags = 2;
+      } else {
+        level_flags = 3;
+      }
+      header |= level_flags << 6;
+      if (s.strstart !== 0) {
+        header |= PRESET_DICT;
+      }
+      header += 31 - header % 31;
+      s.status = BUSY_STATE;
+      putShortMSB(s, header);
+      if (s.strstart !== 0) {
+        putShortMSB(s, strm.adler >>> 16);
+        putShortMSB(s, strm.adler & 65535);
+      }
+      strm.adler = 1;
+    }
+  }
+  if (s.status === EXTRA_STATE) {
+    if (s.gzhead.extra) {
+      beg = s.pending;
+      while (s.gzindex < (s.gzhead.extra.length & 65535)) {
+        if (s.pending === s.pending_buf_size) {
+          if (s.gzhead.hcrc && s.pending > beg) {
+            strm.adler = crc32_1(strm.adler, s.pending_buf, s.pending - beg, beg);
+          }
+          flush_pending(strm);
+          beg = s.pending;
+          if (s.pending === s.pending_buf_size) {
+            break;
+          }
+        }
+        put_byte(s, s.gzhead.extra[s.gzindex] & 255);
+        s.gzindex++;
+      }
+      if (s.gzhead.hcrc && s.pending > beg) {
+        strm.adler = crc32_1(strm.adler, s.pending_buf, s.pending - beg, beg);
+      }
+      if (s.gzindex === s.gzhead.extra.length) {
+        s.gzindex = 0;
+        s.status = NAME_STATE;
+      }
+    } else {
+      s.status = NAME_STATE;
+    }
+  }
+  if (s.status === NAME_STATE) {
+    if (s.gzhead.name) {
+      beg = s.pending;
+      do {
+        if (s.pending === s.pending_buf_size) {
+          if (s.gzhead.hcrc && s.pending > beg) {
+            strm.adler = crc32_1(strm.adler, s.pending_buf, s.pending - beg, beg);
+          }
+          flush_pending(strm);
+          beg = s.pending;
+          if (s.pending === s.pending_buf_size) {
+            val = 1;
+            break;
+          }
+        }
+        if (s.gzindex < s.gzhead.name.length) {
+          val = s.gzhead.name.charCodeAt(s.gzindex++) & 255;
+        } else {
+          val = 0;
+        }
+        put_byte(s, val);
+      } while (val !== 0);
+      if (s.gzhead.hcrc && s.pending > beg) {
+        strm.adler = crc32_1(strm.adler, s.pending_buf, s.pending - beg, beg);
+      }
+      if (val === 0) {
+        s.gzindex = 0;
+        s.status = COMMENT_STATE;
+      }
+    } else {
+      s.status = COMMENT_STATE;
+    }
+  }
+  if (s.status === COMMENT_STATE) {
+    if (s.gzhead.comment) {
+      beg = s.pending;
+      do {
+        if (s.pending === s.pending_buf_size) {
+          if (s.gzhead.hcrc && s.pending > beg) {
+            strm.adler = crc32_1(strm.adler, s.pending_buf, s.pending - beg, beg);
+          }
+          flush_pending(strm);
+          beg = s.pending;
+          if (s.pending === s.pending_buf_size) {
+            val = 1;
+            break;
+          }
+        }
+        if (s.gzindex < s.gzhead.comment.length) {
+          val = s.gzhead.comment.charCodeAt(s.gzindex++) & 255;
+        } else {
+          val = 0;
+        }
+        put_byte(s, val);
+      } while (val !== 0);
+      if (s.gzhead.hcrc && s.pending > beg) {
+        strm.adler = crc32_1(strm.adler, s.pending_buf, s.pending - beg, beg);
+      }
+      if (val === 0) {
+        s.status = HCRC_STATE;
+      }
+    } else {
+      s.status = HCRC_STATE;
+    }
+  }
+  if (s.status === HCRC_STATE) {
+    if (s.gzhead.hcrc) {
+      if (s.pending + 2 > s.pending_buf_size) {
+        flush_pending(strm);
+      }
+      if (s.pending + 2 <= s.pending_buf_size) {
+        put_byte(s, strm.adler & 255);
+        put_byte(s, strm.adler >> 8 & 255);
+        strm.adler = 0;
+        s.status = BUSY_STATE;
+      }
+    } else {
+      s.status = BUSY_STATE;
+    }
+  }
   if (s.pending !== 0) {
     flush_pending(strm);
     if (strm.avail_out === 0) {
@@ -1837,191 +1924,8 @@ var deflate$2 = (strm, flush) => {
   if (s.status === FINISH_STATE && strm.avail_in !== 0) {
     return err(strm, Z_BUF_ERROR$1);
   }
-  if (s.status === INIT_STATE && s.wrap === 0) {
-    s.status = BUSY_STATE;
-  }
-  if (s.status === INIT_STATE) {
-    let header = Z_DEFLATED$2 + (s.w_bits - 8 << 4) << 8;
-    let level_flags = -1;
-    if (s.strategy >= Z_HUFFMAN_ONLY || s.level < 2) {
-      level_flags = 0;
-    } else if (s.level < 6) {
-      level_flags = 1;
-    } else if (s.level === 6) {
-      level_flags = 2;
-    } else {
-      level_flags = 3;
-    }
-    header |= level_flags << 6;
-    if (s.strstart !== 0) {
-      header |= PRESET_DICT;
-    }
-    header += 31 - header % 31;
-    putShortMSB(s, header);
-    if (s.strstart !== 0) {
-      putShortMSB(s, strm.adler >>> 16);
-      putShortMSB(s, strm.adler & 65535);
-    }
-    strm.adler = 1;
-    s.status = BUSY_STATE;
-    flush_pending(strm);
-    if (s.pending !== 0) {
-      s.last_flush = -1;
-      return Z_OK$3;
-    }
-  }
-  if (s.status === GZIP_STATE) {
-    strm.adler = 0;
-    put_byte(s, 31);
-    put_byte(s, 139);
-    put_byte(s, 8);
-    if (!s.gzhead) {
-      put_byte(s, 0);
-      put_byte(s, 0);
-      put_byte(s, 0);
-      put_byte(s, 0);
-      put_byte(s, 0);
-      put_byte(s, s.level === 9 ? 2 : s.strategy >= Z_HUFFMAN_ONLY || s.level < 2 ? 4 : 0);
-      put_byte(s, OS_CODE);
-      s.status = BUSY_STATE;
-      flush_pending(strm);
-      if (s.pending !== 0) {
-        s.last_flush = -1;
-        return Z_OK$3;
-      }
-    } else {
-      put_byte(
-        s,
-        (s.gzhead.text ? 1 : 0) + (s.gzhead.hcrc ? 2 : 0) + (!s.gzhead.extra ? 0 : 4) + (!s.gzhead.name ? 0 : 8) + (!s.gzhead.comment ? 0 : 16)
-      );
-      put_byte(s, s.gzhead.time & 255);
-      put_byte(s, s.gzhead.time >> 8 & 255);
-      put_byte(s, s.gzhead.time >> 16 & 255);
-      put_byte(s, s.gzhead.time >> 24 & 255);
-      put_byte(s, s.level === 9 ? 2 : s.strategy >= Z_HUFFMAN_ONLY || s.level < 2 ? 4 : 0);
-      put_byte(s, s.gzhead.os & 255);
-      if (s.gzhead.extra && s.gzhead.extra.length) {
-        put_byte(s, s.gzhead.extra.length & 255);
-        put_byte(s, s.gzhead.extra.length >> 8 & 255);
-      }
-      if (s.gzhead.hcrc) {
-        strm.adler = crc32_1(strm.adler, s.pending_buf, s.pending, 0);
-      }
-      s.gzindex = 0;
-      s.status = EXTRA_STATE;
-    }
-  }
-  if (s.status === EXTRA_STATE) {
-    if (s.gzhead.extra) {
-      let beg = s.pending;
-      let left = (s.gzhead.extra.length & 65535) - s.gzindex;
-      while (s.pending + left > s.pending_buf_size) {
-        let copy = s.pending_buf_size - s.pending;
-        s.pending_buf.set(s.gzhead.extra.subarray(s.gzindex, s.gzindex + copy), s.pending);
-        s.pending = s.pending_buf_size;
-        if (s.gzhead.hcrc && s.pending > beg) {
-          strm.adler = crc32_1(strm.adler, s.pending_buf, s.pending - beg, beg);
-        }
-        s.gzindex += copy;
-        flush_pending(strm);
-        if (s.pending !== 0) {
-          s.last_flush = -1;
-          return Z_OK$3;
-        }
-        beg = 0;
-        left -= copy;
-      }
-      let gzhead_extra = new Uint8Array(s.gzhead.extra);
-      s.pending_buf.set(gzhead_extra.subarray(s.gzindex, s.gzindex + left), s.pending);
-      s.pending += left;
-      if (s.gzhead.hcrc && s.pending > beg) {
-        strm.adler = crc32_1(strm.adler, s.pending_buf, s.pending - beg, beg);
-      }
-      s.gzindex = 0;
-    }
-    s.status = NAME_STATE;
-  }
-  if (s.status === NAME_STATE) {
-    if (s.gzhead.name) {
-      let beg = s.pending;
-      let val;
-      do {
-        if (s.pending === s.pending_buf_size) {
-          if (s.gzhead.hcrc && s.pending > beg) {
-            strm.adler = crc32_1(strm.adler, s.pending_buf, s.pending - beg, beg);
-          }
-          flush_pending(strm);
-          if (s.pending !== 0) {
-            s.last_flush = -1;
-            return Z_OK$3;
-          }
-          beg = 0;
-        }
-        if (s.gzindex < s.gzhead.name.length) {
-          val = s.gzhead.name.charCodeAt(s.gzindex++) & 255;
-        } else {
-          val = 0;
-        }
-        put_byte(s, val);
-      } while (val !== 0);
-      if (s.gzhead.hcrc && s.pending > beg) {
-        strm.adler = crc32_1(strm.adler, s.pending_buf, s.pending - beg, beg);
-      }
-      s.gzindex = 0;
-    }
-    s.status = COMMENT_STATE;
-  }
-  if (s.status === COMMENT_STATE) {
-    if (s.gzhead.comment) {
-      let beg = s.pending;
-      let val;
-      do {
-        if (s.pending === s.pending_buf_size) {
-          if (s.gzhead.hcrc && s.pending > beg) {
-            strm.adler = crc32_1(strm.adler, s.pending_buf, s.pending - beg, beg);
-          }
-          flush_pending(strm);
-          if (s.pending !== 0) {
-            s.last_flush = -1;
-            return Z_OK$3;
-          }
-          beg = 0;
-        }
-        if (s.gzindex < s.gzhead.comment.length) {
-          val = s.gzhead.comment.charCodeAt(s.gzindex++) & 255;
-        } else {
-          val = 0;
-        }
-        put_byte(s, val);
-      } while (val !== 0);
-      if (s.gzhead.hcrc && s.pending > beg) {
-        strm.adler = crc32_1(strm.adler, s.pending_buf, s.pending - beg, beg);
-      }
-    }
-    s.status = HCRC_STATE;
-  }
-  if (s.status === HCRC_STATE) {
-    if (s.gzhead.hcrc) {
-      if (s.pending + 2 > s.pending_buf_size) {
-        flush_pending(strm);
-        if (s.pending !== 0) {
-          s.last_flush = -1;
-          return Z_OK$3;
-        }
-      }
-      put_byte(s, strm.adler & 255);
-      put_byte(s, strm.adler >> 8 & 255);
-      strm.adler = 0;
-    }
-    s.status = BUSY_STATE;
-    flush_pending(strm);
-    if (s.pending !== 0) {
-      s.last_flush = -1;
-      return Z_OK$3;
-    }
-  }
   if (strm.avail_in !== 0 || s.lookahead !== 0 || flush !== Z_NO_FLUSH$2 && s.status !== FINISH_STATE) {
-    let bstate = s.level === 0 ? deflate_stored(s, flush) : s.strategy === Z_HUFFMAN_ONLY ? deflate_huff(s, flush) : s.strategy === Z_RLE ? deflate_rle(s, flush) : configuration_table[s.level].func(s, flush);
+    let bstate = s.strategy === Z_HUFFMAN_ONLY ? deflate_huff(s, flush) : s.strategy === Z_RLE ? deflate_rle(s, flush) : configuration_table[s.level].func(s, flush);
     if (bstate === BS_FINISH_STARTED || bstate === BS_FINISH_DONE) {
       s.status = FINISH_STATE;
     }
@@ -2078,16 +1982,19 @@ var deflate$2 = (strm, flush) => {
   return s.pending !== 0 ? Z_OK$3 : Z_STREAM_END$3;
 };
 var deflateEnd = (strm) => {
-  if (deflateStateCheck(strm)) {
+  if (!strm || !strm.state) {
     return Z_STREAM_ERROR$2;
   }
   const status = strm.state.status;
+  if (status !== INIT_STATE && status !== EXTRA_STATE && status !== NAME_STATE && status !== COMMENT_STATE && status !== HCRC_STATE && status !== BUSY_STATE && status !== FINISH_STATE) {
+    return err(strm, Z_STREAM_ERROR$2);
+  }
   strm.state = null;
   return status === BUSY_STATE ? err(strm, Z_DATA_ERROR$2) : Z_OK$3;
 };
 var deflateSetDictionary = (strm, dictionary) => {
   let dictLength = dictionary.length;
-  if (deflateStateCheck(strm)) {
+  if (!strm || !strm.state) {
     return Z_STREAM_ERROR$2;
   }
   const s = strm.state;
@@ -2376,14 +2283,7 @@ function Deflate$1(options) {
   this.chunks = [];
   this.strm = new zstream();
   this.strm.avail_out = 0;
-  let status = deflate_1$2.deflateInit2(
-    this.strm,
-    opt.level,
-    opt.method,
-    opt.windowBits,
-    opt.memLevel,
-    opt.strategy
-  );
+  let status = deflate_1$2.deflateInit2(this.strm, opt.level, opt.method, opt.windowBits, opt.memLevel, opt.strategy);
   if (status !== Z_OK$2) {
     throw new Error(messages[status]);
   }
@@ -2472,38 +2372,8 @@ Deflate$1.prototype.onEnd = function(status) {
   this.err = status;
   this.msg = this.strm.msg;
 };
-function deflate$1(input, options) {
-  const deflator = new Deflate$1(options);
-  deflator.push(input, true);
-  if (deflator.err) {
-    throw deflator.msg || messages[deflator.err];
-  }
-  return deflator.result;
-}
-function deflateRaw$1(input, options) {
-  options = options || {};
-  options.raw = true;
-  return deflate$1(input, options);
-}
-function gzip$1(input, options) {
-  options = options || {};
-  options.gzip = true;
-  return deflate$1(input, options);
-}
-var Deflate_1$1 = Deflate$1;
-var deflate_2 = deflate$1;
-var deflateRaw_1$1 = deflateRaw$1;
-var gzip_1$1 = gzip$1;
-var constants$1 = constants$2;
-var deflate_1$1 = {
-  Deflate: Deflate_1$1,
-  deflate: deflate_2,
-  deflateRaw: deflateRaw_1$1,
-  gzip: gzip_1$1,
-  constants: constants$1
-};
-var BAD$1 = 16209;
-var TYPE$1 = 16191;
+var BAD$1 = 30;
+var TYPE$1 = 12;
 var inffast = function inflate_fast(strm, start) {
   let _in;
   let last;
@@ -2880,10 +2750,12 @@ var inflate_table = (type, lens, lens_index, codes, table, table_index, work, op
   let mask;
   let next;
   let base = null;
-  let match;
+  let base_index = 0;
+  let end;
   const count = new Uint16Array(MAXBITS + 1);
   const offs = new Uint16Array(MAXBITS + 1);
   let extra = null;
+  let extra_index = 0;
   let here_bits, here_op, here_val;
   for (len = 0; len <= MAXBITS; len++) {
     count[len] = 0;
@@ -2936,15 +2808,17 @@ var inflate_table = (type, lens, lens_index, codes, table, table_index, work, op
   }
   if (type === CODES$1) {
     base = extra = work;
-    match = 20;
+    end = 19;
   } else if (type === LENS$1) {
     base = lbase;
+    base_index -= 257;
     extra = lext;
-    match = 257;
+    extra_index -= 257;
+    end = 256;
   } else {
     base = dbase;
     extra = dext;
-    match = 0;
+    end = -1;
   }
   huff = 0;
   sym = 0;
@@ -2960,12 +2834,12 @@ var inflate_table = (type, lens, lens_index, codes, table, table_index, work, op
   }
   for (; ; ) {
     here_bits = len - drop;
-    if (work[sym] + 1 < match) {
+    if (work[sym] < end) {
       here_op = 0;
       here_val = work[sym];
-    } else if (work[sym] >= match) {
-      here_op = extra[work[sym] - match];
-      here_val = base[work[sym] - match];
+    } else if (work[sym] > end) {
+      here_op = extra[extra_index + work[sym]];
+      here_val = base[base_index + work[sym]];
     } else {
       here_op = 32 + 64;
       here_val = 0;
@@ -3040,38 +2914,38 @@ var {
   Z_BUF_ERROR,
   Z_DEFLATED
 } = constants$2;
-var HEAD = 16180;
-var FLAGS = 16181;
-var TIME = 16182;
-var OS = 16183;
-var EXLEN = 16184;
-var EXTRA = 16185;
-var NAME = 16186;
-var COMMENT = 16187;
-var HCRC = 16188;
-var DICTID = 16189;
-var DICT = 16190;
-var TYPE = 16191;
-var TYPEDO = 16192;
-var STORED = 16193;
-var COPY_ = 16194;
-var COPY = 16195;
-var TABLE = 16196;
-var LENLENS = 16197;
-var CODELENS = 16198;
-var LEN_ = 16199;
-var LEN = 16200;
-var LENEXT = 16201;
-var DIST = 16202;
-var DISTEXT = 16203;
-var MATCH = 16204;
-var LIT = 16205;
-var CHECK = 16206;
-var LENGTH = 16207;
-var DONE = 16208;
-var BAD = 16209;
-var MEM = 16210;
-var SYNC = 16211;
+var HEAD = 1;
+var FLAGS = 2;
+var TIME = 3;
+var OS = 4;
+var EXLEN = 5;
+var EXTRA = 6;
+var NAME = 7;
+var COMMENT = 8;
+var HCRC = 9;
+var DICTID = 10;
+var DICT = 11;
+var TYPE = 12;
+var TYPEDO = 13;
+var STORED = 14;
+var COPY_ = 15;
+var COPY = 16;
+var TABLE = 17;
+var LENLENS = 18;
+var CODELENS = 19;
+var LEN_ = 20;
+var LEN = 21;
+var LENEXT = 22;
+var DIST = 23;
+var DISTEXT = 24;
+var MATCH = 25;
+var LIT = 26;
+var CHECK = 27;
+var LENGTH = 28;
+var DONE = 29;
+var BAD = 30;
+var MEM = 31;
+var SYNC = 32;
 var ENOUGH_LENS = 852;
 var ENOUGH_DISTS = 592;
 var MAX_WBITS = 15;
@@ -3080,7 +2954,6 @@ var zswap32 = (q) => {
   return (q >>> 24 & 255) + (q >>> 8 & 65280) + ((q & 65280) << 8) + ((q & 255) << 24);
 };
 function InflateState() {
-  this.strm = null;
   this.mode = 0;
   this.last = false;
   this.wrap = 0;
@@ -3117,18 +2990,8 @@ function InflateState() {
   this.back = 0;
   this.was = 0;
 }
-var inflateStateCheck = (strm) => {
-  if (!strm) {
-    return 1;
-  }
-  const state = strm.state;
-  if (!state || state.strm !== strm || state.mode < HEAD || state.mode > SYNC) {
-    return 1;
-  }
-  return 0;
-};
 var inflateResetKeep = (strm) => {
-  if (inflateStateCheck(strm)) {
+  if (!strm || !strm.state) {
     return Z_STREAM_ERROR$1;
   }
   const state = strm.state;
@@ -3140,7 +3003,6 @@ var inflateResetKeep = (strm) => {
   state.mode = HEAD;
   state.last = 0;
   state.havedict = 0;
-  state.flags = -1;
   state.dmax = 32768;
   state.head = null;
   state.hold = 0;
@@ -3152,7 +3014,7 @@ var inflateResetKeep = (strm) => {
   return Z_OK$1;
 };
 var inflateReset = (strm) => {
-  if (inflateStateCheck(strm)) {
+  if (!strm || !strm.state) {
     return Z_STREAM_ERROR$1;
   }
   const state = strm.state;
@@ -3163,7 +3025,7 @@ var inflateReset = (strm) => {
 };
 var inflateReset2 = (strm, windowBits) => {
   let wrap;
-  if (inflateStateCheck(strm)) {
+  if (!strm || !strm.state) {
     return Z_STREAM_ERROR$1;
   }
   const state = strm.state;
@@ -3171,7 +3033,7 @@ var inflateReset2 = (strm, windowBits) => {
     wrap = 0;
     windowBits = -windowBits;
   } else {
-    wrap = (windowBits >> 4) + 5;
+    wrap = (windowBits >> 4) + 1;
     if (windowBits < 48) {
       windowBits &= 15;
     }
@@ -3192,9 +3054,7 @@ var inflateInit2 = (strm, windowBits) => {
   }
   const state = new InflateState();
   strm.state = state;
-  state.strm = strm;
   state.window = null;
-  state.mode = HEAD;
   const ret = inflateReset2(strm, windowBits);
   if (ret !== Z_OK$1) {
     strm.state = null;
@@ -3294,7 +3154,7 @@ var inflate$2 = (strm, flush) => {
   let opts;
   let n;
   const order = new Uint8Array([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
-  if (inflateStateCheck(strm) || !strm.output || !strm.input && strm.avail_in !== 0) {
+  if (!strm || !strm.state || !strm.output || !strm.input && strm.avail_in !== 0) {
     return Z_STREAM_ERROR$1;
   }
   state = strm.state;
@@ -3329,9 +3189,6 @@ var inflate$2 = (strm, flush) => {
             bits += 8;
           }
           if (state.wrap & 2 && hold === 35615) {
-            if (state.wbits === 0) {
-              state.wbits = 15;
-            }
             state.check = 0;
             hbuf[0] = hold & 255;
             hbuf[1] = hold >>> 8 & 255;
@@ -3341,6 +3198,7 @@ var inflate$2 = (strm, flush) => {
             state.mode = FLAGS;
             break;
           }
+          state.flags = 0;
           if (state.head) {
             state.head.done = false;
           }
@@ -3359,14 +3217,12 @@ var inflate$2 = (strm, flush) => {
           len = (hold & 15) + 8;
           if (state.wbits === 0) {
             state.wbits = len;
-          }
-          if (len > 15 || len > state.wbits) {
+          } else if (len > state.wbits) {
             strm.msg = "invalid window size";
             state.mode = BAD;
             break;
           }
           state.dmax = 1 << state.wbits;
-          state.flags = 0;
           strm.adler = state.check = 1;
           state.mode = hold & 512 ? DICTID : TYPE;
           hold = 0;
@@ -3395,7 +3251,7 @@ var inflate$2 = (strm, flush) => {
           if (state.head) {
             state.head.text = hold >> 8 & 1;
           }
-          if (state.flags & 512 && state.wrap & 4) {
+          if (state.flags & 512) {
             hbuf[0] = hold & 255;
             hbuf[1] = hold >>> 8 & 255;
             state.check = crc32_1(state.check, hbuf, 2, 0);
@@ -3415,7 +3271,7 @@ var inflate$2 = (strm, flush) => {
           if (state.head) {
             state.head.time = hold;
           }
-          if (state.flags & 512 && state.wrap & 4) {
+          if (state.flags & 512) {
             hbuf[0] = hold & 255;
             hbuf[1] = hold >>> 8 & 255;
             hbuf[2] = hold >>> 16 & 255;
@@ -3438,7 +3294,7 @@ var inflate$2 = (strm, flush) => {
             state.head.xflags = hold & 255;
             state.head.os = hold >> 8;
           }
-          if (state.flags & 512 && state.wrap & 4) {
+          if (state.flags & 512) {
             hbuf[0] = hold & 255;
             hbuf[1] = hold >>> 8 & 255;
             state.check = crc32_1(state.check, hbuf, 2, 0);
@@ -3460,7 +3316,7 @@ var inflate$2 = (strm, flush) => {
             if (state.head) {
               state.head.extra_len = hold;
             }
-            if (state.flags & 512 && state.wrap & 4) {
+            if (state.flags & 512) {
               hbuf[0] = hold & 255;
               hbuf[1] = hold >>> 8 & 255;
               state.check = crc32_1(state.check, hbuf, 2, 0);
@@ -3483,15 +3339,9 @@ var inflate$2 = (strm, flush) => {
                 if (!state.head.extra) {
                   state.head.extra = new Uint8Array(state.head.extra_len);
                 }
-                state.head.extra.set(
-                  input.subarray(
-                    next,
-                    next + copy
-                  ),
-                  len
-                );
+                state.head.extra.set(input.subarray(next, next + copy), len);
               }
-              if (state.flags & 512 && state.wrap & 4) {
+              if (state.flags & 512) {
                 state.check = crc32_1(state.check, input, copy, next);
               }
               have -= copy;
@@ -3516,7 +3366,7 @@ var inflate$2 = (strm, flush) => {
                 state.head.name += String.fromCharCode(len);
               }
             } while (len && copy < have);
-            if (state.flags & 512 && state.wrap & 4) {
+            if (state.flags & 512) {
               state.check = crc32_1(state.check, input, copy, next);
             }
             have -= copy;
@@ -3541,7 +3391,7 @@ var inflate$2 = (strm, flush) => {
                 state.head.comment += String.fromCharCode(len);
               }
             } while (len && copy < have);
-            if (state.flags & 512 && state.wrap & 4) {
+            if (state.flags & 512) {
               state.check = crc32_1(state.check, input, copy, next);
             }
             have -= copy;
@@ -3563,7 +3413,7 @@ var inflate$2 = (strm, flush) => {
               hold += input[next++] << bits;
               bits += 8;
             }
-            if (state.wrap & 4 && hold !== (state.check & 65535)) {
+            if (hold !== (state.check & 65535)) {
               strm.msg = "header crc mismatch";
               state.mode = BAD;
               break;
@@ -4101,11 +3951,11 @@ var inflate$2 = (strm, flush) => {
             _out -= left;
             strm.total_out += _out;
             state.total += _out;
-            if (state.wrap & 4 && _out) {
+            if (_out) {
               strm.adler = state.check = state.flags ? crc32_1(state.check, output, _out, put - _out) : adler32_1(state.check, output, _out, put - _out);
             }
             _out = left;
-            if (state.wrap & 4 && (state.flags ? hold : zswap32(hold)) !== state.check) {
+            if ((state.flags ? hold : zswap32(hold)) !== state.check) {
               strm.msg = "incorrect data check";
               state.mode = BAD;
               break;
@@ -4124,7 +3974,7 @@ var inflate$2 = (strm, flush) => {
               hold += input[next++] << bits;
               bits += 8;
             }
-            if (state.wrap & 4 && hold !== (state.total & 4294967295)) {
+            if (hold !== (state.total & 4294967295)) {
               strm.msg = "incorrect length check";
               state.mode = BAD;
               break;
@@ -4161,7 +4011,7 @@ var inflate$2 = (strm, flush) => {
   strm.total_in += _in;
   strm.total_out += _out;
   state.total += _out;
-  if (state.wrap & 4 && _out) {
+  if (state.wrap && _out) {
     strm.adler = state.check = state.flags ? crc32_1(state.check, output, _out, strm.next_out - _out) : adler32_1(state.check, output, _out, strm.next_out - _out);
   }
   strm.data_type = state.bits + (state.last ? 64 : 0) + (state.mode === TYPE ? 128 : 0) + (state.mode === LEN_ || state.mode === COPY_ ? 256 : 0);
@@ -4171,7 +4021,7 @@ var inflate$2 = (strm, flush) => {
   return ret;
 };
 var inflateEnd = (strm) => {
-  if (inflateStateCheck(strm)) {
+  if (!strm || !strm.state) {
     return Z_STREAM_ERROR$1;
   }
   let state = strm.state;
@@ -4182,7 +4032,7 @@ var inflateEnd = (strm) => {
   return Z_OK$1;
 };
 var inflateGetHeader = (strm, head) => {
-  if (inflateStateCheck(strm)) {
+  if (!strm || !strm.state) {
     return Z_STREAM_ERROR$1;
   }
   const state = strm.state;
@@ -4198,7 +4048,7 @@ var inflateSetDictionary = (strm, dictionary) => {
   let state;
   let dictid;
   let ret;
-  if (inflateStateCheck(strm)) {
+  if (!strm || !strm.state) {
     return Z_STREAM_ERROR$1;
   }
   state = strm.state;
@@ -4293,10 +4143,7 @@ function Inflate$1(options) {
   this.chunks = [];
   this.strm = new zstream();
   this.strm.avail_out = 0;
-  let status = inflate_1$2.inflateInit2(
-    this.strm,
-    opt.windowBits
-  );
+  let status = inflate_1$2.inflateInit2(this.strm, opt.windowBits);
   if (status !== Z_OK) {
     throw new Error(messages[status]);
   }
@@ -4431,7 +4278,6 @@ var inflate_1$1 = {
   ungzip: ungzip$1,
   constants
 };
-var { Deflate, deflate, deflateRaw, gzip } = deflate_1$1;
 var { Inflate, inflate, inflateRaw, ungzip } = inflate_1$1;
 var inflate_1 = inflate;
 
@@ -4681,12 +4527,7 @@ var BTreeV1RawDataChunks = class extends BTreeV1 {
         } else {
           chunk_buffer = await this.fh.slice(addr, addr + node_key.get("chunk_size"));
           let filter_mask = node_key.get("filter_mask");
-          chunk_buffer = this._filter_chunk(
-            chunk_buffer,
-            filter_mask,
-            filter_pipeline,
-            item_size
-          );
+          chunk_buffer = this._filter_chunk(chunk_buffer, filter_mask, filter_pipeline, item_size);
         }
         var chunk_offset = node_key.get("chunk_offset").slice();
         var apos = chunk_offset.slice();
@@ -5047,11 +4888,7 @@ var GlobalHeap = class {
       this._objects = /* @__PURE__ */ new Map();
       var offset = 0;
       while (offset <= this.heap_data.byteLength - GLOBAL_HEAP_OBJECT_SIZE) {
-        let info = _unpack_struct_from(
-          GLOBAL_HEAP_OBJECT,
-          this.heap_data,
-          offset
-        );
+        let info = _unpack_struct_from(GLOBAL_HEAP_OBJECT, this.heap_data, offset);
         if (info.get("object_index") == 0) {
           break;
         }
@@ -5399,11 +5236,7 @@ var DataObjects = class {
       let [res0, res1] = await struct.unpack_from_async("<HI", this.fh, offset);
       offset += struct.calcsize("<HI");
       for (var _ = 0; _ < nfilters; _++) {
-        let filter_info = await _unpack_struct_from_async(
-          FILTER_PIPELINE_DESCR_V1,
-          this.fh,
-          offset
-        );
+        let filter_info = await _unpack_struct_from_async(FILTER_PIPELINE_DESCR_V1, this.fh, offset);
         offset += FILTER_PIPELINE_DESCR_V1_SIZE;
         let padded_name_length = _padded_size(filter_info.get("name_length"), 8);
         let fmt = "<" + padded_name_length.toFixed() + "s";
@@ -5505,20 +5338,12 @@ var DataObjects = class {
     let version = (await struct.unpack_from_async("<B", this.fh, offset))[0];
     var attr_map, padding_multiple;
     if (version == 1) {
-      attr_map = await _unpack_struct_from_async(
-        ATTR_MSG_HEADER_V1,
-        this.fh,
-        offset
-      );
+      attr_map = await _unpack_struct_from_async(ATTR_MSG_HEADER_V1, this.fh, offset);
       assert(attr_map.get("version") == 1);
       offset += ATTR_MSG_HEADER_V1_SIZE;
       padding_multiple = 8;
     } else if (version == 3) {
-      attr_map = await _unpack_struct_from_async(
-        ATTR_MSG_HEADER_V3,
-        this.fh,
-        offset
-      );
+      attr_map = await _unpack_struct_from_async(ATTR_MSG_HEADER_V3, this.fh, offset);
       assert(attr_map.get("version") == 3);
       offset += ATTR_MSG_HEADER_V3_SIZE;
       padding_multiple = 1;
@@ -5719,11 +5544,7 @@ var DataObjects = class {
   }
   async *_iter_links_from_symbol_tables(sym_tbl_msg) {
     assert(sym_tbl_msg.get("size") == 16);
-    let data = await _unpack_struct_from_async(
-      SYMBOL_TABLE_MSG,
-      this.fh,
-      sym_tbl_msg.get("offset_to_message")
-    );
+    let data = await _unpack_struct_from_async(SYMBOL_TABLE_MSG, this.fh, sym_tbl_msg.get("offset_to_message"));
     yield* this._iter_links_btree_v1(data.get("btree_address"), data.get("heap_address"));
   }
   async *_iter_links_btree_v1(btree_address, heap_address) {
@@ -5850,11 +5671,7 @@ var DataObjects = class {
   }
   async _get_data_message_properties(msg_offset) {
     let dims, layout_class, property_offset;
-    let [version, arg1, arg2] = await struct.unpack_from_async(
-      "<BBB",
-      this.fh,
-      msg_offset
-    );
+    let [version, arg1, arg2] = await struct.unpack_from_async("<BBB", this.fh, msg_offset);
     if (version == 1 || version == 2) {
       dims = arg1;
       layout_class = arg2;
@@ -5923,22 +5740,13 @@ var DataObjects = class {
   }
   async _get_chunked_data(offset) {
     await this._get_chunk_params();
-    var chunk_btree = new BTreeV1RawDataChunks(
-      this.fh,
-      this._chunk_address,
-      this._chunk_dims
-    );
+    var chunk_btree = new BTreeV1RawDataChunks(this.fh, this._chunk_address, this._chunk_dims);
     await chunk_btree.ready;
     const dtype = await this.dtype;
     const shape = await this.shape;
     const chunks = await this.chunks;
     const filter_pipeline = await this.get_filter_pipeline();
-    let data = await chunk_btree.construct_data_from_chunks(
-      chunks,
-      shape,
-      dtype,
-      filter_pipeline
-    );
+    let data = await chunk_btree.construct_data_from_chunks(chunks, shape, dtype, filter_pipeline);
     if (dtype instanceof Array && /^VLEN/.test(dtype[0])) {
       let dtype_class = dtype[0];
       for (var i = 0; i < data.length; i++) {
@@ -5978,11 +5786,7 @@ var DataObjects = class {
       var address = (await struct.unpack_from_async("<Q", this.fh, property_offset))[0];
       data_offset = property_offset + struct.calcsize("<Q");
     } else if (version == 3) {
-      var [dims, address] = await struct.unpack_from_async(
-        "<BQ",
-        this.fh,
-        property_offset
-      );
+      var [dims, address] = await struct.unpack_from_async("<BQ", this.fh, property_offset);
       data_offset = property_offset + struct.calcsize("<BQ");
     }
     assert(version >= 1 && version <= 3);
@@ -6134,7 +5938,12 @@ var Group = class {
     this.name = name;
   }
   async init(dataobjects) {
-    this._links = await dataobjects.get_links();
+    const index = this.file.index;
+    if (index && this.name in index) {
+      this._links = index[this.name];
+    } else {
+      this._links = await dataobjects.get_links();
+    }
     this._dataobjects = dataobjects;
     this._attrs = null;
     this._keys = null;
@@ -6238,8 +6047,11 @@ var Group = class {
   }
 };
 var File = class extends Group {
-  constructor(fh, filename) {
+  constructor(fh, filename, options) {
     super("/", null);
+    if (options && options.index) {
+      this.index = options.index;
+    }
     this.ready = this.init(fh, filename);
   }
   async init(fh, filename) {
@@ -6251,7 +6063,11 @@ var File = class extends Group {
     this.parent = this;
     this.file = this;
     this.name = "/";
-    this._links = await dataobjects.get_links();
+    if (this.index && this.name in this.index) {
+      this._links = this.index[this.name];
+    } else {
+      this._links = await dataobjects.get_links();
+    }
     this._dataobjects = dataobjects;
     this._attrs = null;
     this._keys = null;
@@ -6264,11 +6080,9 @@ var File = class extends Group {
     if (this._dataobjects.offset == obj_addr) {
       return this;
     }
-    return this.visititems(
-      (y) => {
-        y._dataobjects.offset == obj_addr ? y : null;
-      }
-    );
+    return this.visititems((y) => {
+      y._dataobjects.offset == obj_addr ? y : null;
+    });
   }
 };
 var Dataset = class extends Array {
@@ -6321,4 +6135,4 @@ export {
   Filters,
   Group
 };
-/*! pako 2.1.0 https://github.com/nodeca/pako @license (MIT AND Zlib) */
+/*! pako 2.0.4 https://github.com/nodeca/pako @license (MIT AND Zlib) */
