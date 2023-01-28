@@ -253,7 +253,10 @@ var DatatypeMessage = class {
     } else if (datatype_class == DATATYPE_BITFIELD) {
       throw "Bitfield datatype class not supported.";
     } else if (datatype_class == DATATYPE_OPAQUE) {
-      throw "Opaque datatype class not supported.";
+      return {
+        datatype_class: DATATYPE_OPAQUE,
+        size: datatype_msg.get("size")
+      };
     } else if (datatype_class == DATATYPE_COMPOUND) {
       return this._determine_dtype_compound(datatype_msg);
     } else if (datatype_class == DATATYPE_REFERENCE) {
@@ -4280,6 +4283,7 @@ var inflate_1$1 = {
 };
 var { Inflate, inflate, inflateRaw, ungzip } = inflate_1$1;
 var inflate_1 = inflate;
+var ungzip_1 = ungzip;
 
 // esm/filters.js
 var zlib_decompress = function(buf, itemsize) {
@@ -5367,10 +5371,14 @@ var DataObjects = class {
       return a * b;
     }, 1);
     offset += _padded_size(attr_map.get("dataspace_size"), padding_multiple);
-    var value = await this._attr_value(dtype, this.fh, items, offset);
-    if (shape.length == 0) {
-      value = value[0];
+    if (dtype.datatype_class === 5) {
+      value = await this.fh.slice(offset, offset + dtype.size);
     } else {
+      var value = await this._attr_value(dtype, this.fh, items, offset);
+      if (shape.length == 0) {
+        value = value[0];
+      } else {
+      }
     }
     return [name, value];
   }
@@ -5710,6 +5718,8 @@ var DataObjects = class {
           output[i] = view[item_getter](i * item_size, !item_is_big_endian, item_size);
         }
         return output;
+      } else if (dtype.datatype_class === 5) {
+        return this.fh.slice(data_offset, data_offset + dtype.size);
       } else {
         throw "not Implemented - no proper dtype defined";
       }
@@ -6052,6 +6062,9 @@ var File = class extends Group {
     if (options && options.index) {
       this.index = options.index;
     }
+    if (options && options.indexName) {
+      this.indexName = options.indexName;
+    }
     this.ready = this.init(fh, filename);
   }
   async init(fh, filename) {
@@ -6075,6 +6088,17 @@ var File = class extends Group {
     this.filename = filename || "";
     this.mode = "r";
     this.userblock_size = 0;
+    if (!this.index) {
+      const indexName = this.indexName || "_index";
+      const index_dataset = await this.get(indexName);
+      if (index_dataset) {
+        await index_dataset.ready;
+        const comp_index_data = await index_dataset.value;
+        const inflated = ungzip_1(comp_index_data);
+        const json = new TextDecoder().decode(inflated);
+        this.index = JSON.parse(json);
+      }
+    }
   }
   _get_object_by_address(obj_addr) {
     if (this._dataobjects.offset == obj_addr) {
