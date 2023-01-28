@@ -16,53 +16,6 @@ class BufferWrapper {
 
 suite("test", function () {
 
-    test("cndb -- no index -- local", async function () {
-
-        this.timeout(100000)
-
-        const startTime = Date.now()
-
-        // create HDF5 file object
-        const localConfig = {path: require.resolve("./spleen_1chr1rep.cndb")}
-
-        await testCNDB(localConfig)
-
-        console.log(`cndb -- no index -- local finished in ${Date.now() - startTime} ms`)
-    })
-
-    test("cndb - use index -- local", async function () {
-
-        this.timeout(100000)
-        const startTime = Date.now()
-
-        // Create HDF5 file
-        const localConfig = {
-            indexPath: require.resolve("./spleen_1chr1rep.index.json"),
-            path: require.resolve("./spleen_1chr1rep.cndb")
-        }
-
-        await testCNDB(localConfig)
-
-        console.log(`cndb - use index -- local finished in ${Date.now() - startTime} ms`)
-
-    })
-
-    test("cndb -- internal index -local", async function () {
-
-        this.timeout(100000)
-
-        const startTime = Date.now()
-
-        // create HDF5 file object
-        const localConfig = {
-            path: require.resolve("/Users/jrobinso/igv-team Dropbox/James Robinson/projects/hdf5-indexer/spleen_1chr1rep.indexed.cndb"),
-            indexGroup: "Header"
-        }
-
-        await testCNDB(localConfig)
-
-        console.log(`cndb -- internal index -- local finished in ${Date.now() - startTime} ms`)
-    })
 
     test("cndb - internal index -- remote", async function () {
 
@@ -70,8 +23,7 @@ suite("test", function () {
         const startTime = Date.now()
 
         const remoteConfig = {
-            url: "https://igv.org/demo/cndb/spleen_1chr1rep.indexed.cndb",
-            indexGroup: "Header"
+            url: "https://www.dropbox.com/s/53fbs3le4a65noq/spleen_1chr1rep.indexed.cndb?dl=0",
         }
 
         await testCNDB(remoteConfig)
@@ -81,129 +33,41 @@ suite("test", function () {
     })
 
 
-    test("cndb - use index -- remote", async function () {
-
-        this.timeout(100000)
-        const startTime = Date.now()
-
-        const remoteConfig = {
-            indexPath: require.resolve("./spleen_1chr1rep.index.json"),
-            url: "https://dl.dropboxusercontent.com/s/4ncekfdrlvkjjj6/spleen_1chr1rep.cndb?dl=0"
-        }
-
-        await testCNDB(remoteConfig)
-
-        console.log(`cndb - use index -- remote finished in ${Date.now() - startTime} ms`)
-
-    })
-
-    test("cndb - use index -- 6 GB remote", async function () {
-
-        this.timeout(100000)
-        const startTime = Date.now()
-
-        const config = {
-            indexPath: require.resolve("./spleen_short.index.json"),
-            url: "https://www.dropbox.com/s/ds0abk6lfgbdvps/spleen_short.cndb?dl=0"
-        }
-
-        console.log("Open file")
-        const hdfFile = await openH5File(config)
-        console.log(`File opened in ${Date.now() - startTime} ms`)
-
-
-        console.log("Get spatial position group")
-        const group = await hdfFile.get('/replica10_chr16/spatial_position')
-        //console.log(group.keys)
-
-        console.log("Get first dataset")
-        const time1 = Date.now()
-        const dataset1 = await group.get('11')
-        const values1 = await dataset1.value
-        console.log(`First dataset (${values1.length} elements) loaded in  ${Date.now() - time1} ms`)
-
-        console.log("Start second dataset")
-        const time2 = Date.now()
-        const dataset2 = await group.get('11')
-        const values2 = await dataset2.value
-        console.log(`Second dataset (${values2.length} elements) loaded in  ${Date.now() - time2} ms`)
-
-        console.log(`Second dataset loaded in  ${Date.now() - time2} ms`)
-
-        console.log(`cndb - use index -- 6 GB remote finished in ${Date.now() - startTime} ms`)
-
-    })
-
-    test("cndb - use index -- 127 GB remote", async function () {
-
-        this.timeout(100000)
-        const startTime = Date.now()
-
-        const config = {
-            indexPath: require.resolve("./spleen_full.index.json"),
-            url: "https://www.dropbox.com/s/o0evglziffzlqzo/spleen_full.cndb?dl=0"
-        }
-
-        console.log("Open file")
-        const hdfFile = await openH5File(config)
-        console.log(`File opened in ${Date.now() - startTime} ms`)
-
-
-        console.log("Get spatial position group")
-        const group = await hdfFile.get('/replica10_chr16/spatial_position')
-        //console.log(group.keys)
-
-        console.log("Get first dataset")
-        const time1 = Date.now()
-        const dataset1 = await group.get('11')
-        const values1 = await dataset1.value
-        console.log(`First dataset (${values1.length} elements) loaded in  ${Date.now() - time1} ms`)
-
-        console.log("Start second dataset")
-        const time2 = Date.now()
-        const dataset2 = await group.get('11')
-        const values2 = await dataset2.value
-        console.log(`Second dataset (${values2.length} elements) loaded in  ${Date.now() - time2} ms`)
-
-        console.log(`cndb - use index -- 6 GB remote finished in ${Date.now() - startTime} ms`)
-
-    })
-
-    test("cndb - use internal index -- 127 GB local", async function () {
-
-        this.timeout(100000)
-        const startTime = Date.now()
-
-        const config = {
-            path: "/Users/jrobinso/Downloads/spleen_full.cndb"
-        }
-
-        console.log("Open file")
-        const hdfFile = await openH5File(config)
-        console.log(`File opened in ${Date.now() - startTime} ms`)
-
-
-        console.log("Get spatial position group")
-        const group = await hdfFile.get('/replica10_chr16/spatial_position')
-        //console.log(group.keys)
-
-        console.log("Get first dataset")
-        const time1 = Date.now()
-        const dataset1 = await group.get('11')
-        const values1 = await dataset1.value
-        console.log(`First dataset (${values1.length} elements) loaded in  ${Date.now() - time1} ms`)
-
-        console.log("Start second dataset")
-        const time2 = Date.now()
-        const dataset2 = await group.get('11')
-        const values2 = await dataset2.value
-        console.log(`Second dataset (${values2.length} elements) loaded in  ${Date.now() - time2} ms`)
-
-        console.log(`cndb - use index -- 6 GB remote finished in ${Date.now() - startTime} ms`)
-
-    })
-
-
+    // test("cndb - use index -- 127 GB remote", async function () {
+    //
+    //     this.timeout(100000)
+    //     const startTime = Date.now()
+    //
+    //     const config = {
+    //         indexPath: require.resolve("./spleen_full.index.json"),
+    //         url: "https://www.dropbox.com/s/o0evglziffzlqzo/spleen_full.cndb?dl=0"
+    //     }
+    //
+    //     console.log("Open file")
+    //     const hdfFile = await openH5File(config)
+    //     console.log(`File opened in ${Date.now() - startTime} ms`)
+    //
+    //
+    //     console.log("Get spatial position group")
+    //     const group = await hdfFile.get('/replica10_chr16/spatial_position')
+    //     //console.log(group.keys)
+    //
+    //     console.log("Get first dataset")
+    //     const time1 = Date.now()
+    //     const dataset1 = await group.get('11')
+    //     const values1 = await dataset1.value
+    //     console.log(`First dataset (${values1.length} elements) loaded in  ${Date.now() - time1} ms`)
+    //
+    //     console.log("Start second dataset")
+    //     const time2 = Date.now()
+    //     const dataset2 = await group.get('11')
+    //     const values2 = await dataset2.value
+    //     console.log(`Second dataset (${values2.length} elements) loaded in  ${Date.now() - time2} ms`)
+    //
+    //     console.log(`cndb - use index -- 6 GB remote finished in ${Date.now() - startTime} ms`)
+    //
+    // })
+    //
     async function testCNDB(config) {
 
         const time1 = Date.now()
