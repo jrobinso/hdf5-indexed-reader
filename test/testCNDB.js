@@ -47,6 +47,39 @@ suite("test", function () {
 
     })
 
+    test("cndb -- internal index -local", async function () {
+
+        this.timeout(100000)
+
+        const startTime = Date.now()
+
+        // create HDF5 file object
+        const localConfig = {
+            path: require.resolve("/Users/jrobinso/igv-team Dropbox/James Robinson/projects/hdf5-indexer/spleen_1chr1rep.indexed.cndb"),
+            indexGroup: "Header"
+        }
+
+        await testCNDB(localConfig)
+
+        console.log(`cndb -- internal index -- local finished in ${Date.now() - startTime} ms`)
+    })
+
+    test("cndb - internal index -- remote", async function () {
+
+        this.timeout(100000)
+        const startTime = Date.now()
+
+        const remoteConfig = {
+            url: "https://igv.org/demo/cndb/spleen_1chr1rep.indexed.cndb",
+            indexGroup: "Header"
+        }
+
+        await testCNDB(remoteConfig)
+
+        console.log(`cndb - use index -- remote finished in ${Date.now() - startTime} ms`)
+
+    })
+
 
     test("cndb - use index -- remote", async function () {
 
@@ -136,6 +169,40 @@ suite("test", function () {
 
     })
 
+    test("cndb - use internal index -- 127 GB local", async function () {
+
+        this.timeout(100000)
+        const startTime = Date.now()
+
+        const config = {
+            path: "/Users/jrobinso/Downloads/spleen_full.cndb"
+        }
+
+        console.log("Open file")
+        const hdfFile = await openH5File(config)
+        console.log(`File opened in ${Date.now() - startTime} ms`)
+
+
+        console.log("Get spatial position group")
+        const group = await hdfFile.get('/replica10_chr16/spatial_position')
+        //console.log(group.keys)
+
+        console.log("Get first dataset")
+        const time1 = Date.now()
+        const dataset1 = await group.get('11')
+        const values1 = await dataset1.value
+        console.log(`First dataset (${values1.length} elements) loaded in  ${Date.now() - time1} ms`)
+
+        console.log("Start second dataset")
+        const time2 = Date.now()
+        const dataset2 = await group.get('11')
+        const values2 = await dataset2.value
+        console.log(`Second dataset (${values2.length} elements) loaded in  ${Date.now() - time2} ms`)
+
+        console.log(`cndb - use index -- 6 GB remote finished in ${Date.now() - startTime} ms`)
+
+    })
+
 
     async function testCNDB(config) {
 
@@ -147,10 +214,10 @@ suite("test", function () {
 
         // fetch root group
         const rootGroup = await hdfFile.get('/')
-        const rootKeys = rootGroup.keys
-        assert.equal(rootKeys.length, 2)
-        assert.equal(rootKeys[0], 'Header')
-        assert.equal(rootKeys[1], 'replica10_chr1')
+        const rootKeys = new Set(rootGroup.keys)
+        assert.isTrue(rootKeys.has('Header'))
+        assert.isTrue(rootKeys.has('replica10_chr1'))
+
 
         // fetch first group
         const group = await hdfFile.get('/replica10_chr1')

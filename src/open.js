@@ -9,6 +9,7 @@ async function openH5File(options) {
     let indexReader
     let index
     let filename
+    const isRemote = options.url !== undefined
     if (options.indexURL) {
         indexReader = new RemoteFile({url: options.indexURL})
         filename = getFilename(options.indexURL)
@@ -23,11 +24,10 @@ async function openH5File(options) {
         const indexFileContents = await indexReader.read()
         const indexFileJson = new TextDecoder().decode(indexFileContents)
         index = JSON.parse(indexFileJson)
-
     }
 
     let fileReader = getReaderFor(options)
-    if (index) {
+    if (isRemote) {
         fileReader = new BufferedFile({file: fileReader, size: 4000})
     }
     const asyncBuffer = new AsyncBuffer(fileReader)
