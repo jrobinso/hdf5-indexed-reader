@@ -6090,8 +6090,9 @@ var File = class extends Group {
     this.userblock_size = 0;
     if (!this.index) {
       const indexName = this.indexName || "_index";
-      const index_dataset = await this.get(indexName);
-      if (index_dataset) {
+      const keySet = new Set(await this.keys);
+      if (keySet.has(indexName)) {
+        const index_dataset = await this.get(indexName);
         await index_dataset.ready;
         const comp_index_data = await index_dataset.value;
         const inflated = ungzip_1(comp_index_data);
