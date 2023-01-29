@@ -48,5 +48,23 @@ const hdfFile = await openH5File({
 
 const rootGroup = await hdfFile.get('/')
 
+```
+
+
+## Node usage
+
+```js
+
+import {openH5File} from "dist/esm/hdf5-indexed-reader.esm.js"
+
+const hdfFile = await openH5File({
+    path: require.resolve("/spleen_1chr1rep.indexed.cndb")
+})
+
+const rootGroup = await hdfFile.get('/')
 
 ```
+
+See unit test files in the "test" folder for more examples.
+
+

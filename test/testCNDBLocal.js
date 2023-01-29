@@ -28,7 +28,7 @@ suite("test", function () {
         const startTime = Date.now()
 
         // create HDF5 file object
-        const localConfig = {path: require.resolve("/Users/jrobinso/igv-team Dropbox/Data/hdf5/spleen_1chr1rep.cndb")}
+        const localConfig = {path: require.resolve("./spleen_1chr1rep.cndb")}
 
         await testCNDB(localConfig)
 
