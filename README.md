@@ -18,7 +18,7 @@ quickly freeze an application.  This project addresses this  issue by supporting
 ## Limitations
 
 * As this project is based on [jsfive](https://github.com/usnistgov/jsfive),  Some limitations of that tool apply here,
-namely not all datatypes that are supported. However common data formats including numeric and string datatypes
+namely all datatypes that are supported. However common data formats including numeric and string datatypes
 are.  
 
 
