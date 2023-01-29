@@ -11,7 +11,7 @@ support of large files that would overwhelm browser memory. The project's focus 
 potentially many (10s of thousands or more) datasets.  Loading such files can result in 
 thousands of seeks over disparate regions of the file to build the internal b-tree indeces. The cost of such seeks for local 
 files with fast disks are minimal, but for asynchronous  reading over the web the explosion of http requests can 
-quickly freeze an application.  This project addresses this  issue by supporting an external index for the containers 
+quickly freeze an application.  This project addresses this  issue by supporting a pre-built index for the containers 
 (groups and datasets) file offsets.  
 
 
