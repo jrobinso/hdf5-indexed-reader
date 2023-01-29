@@ -3,7 +3,7 @@
 ## Summary
 
 Module built on the jsfive project (https://github.com/usnistgov/jsfive) for efficient querying of HDF5 files over the
-web.   Runs in node and the browser (for browser use build and import dist/hdf5-indexed-reader.esm.js).
+web.   Runs in node and the browser (for browser build ```npm run build``` and import dist/hdf5-indexed-reader.esm.js).
 
 hdf5-indexed-reader works in conjunction with hdf5 files indexed with the companion python project  
 [h5-indexer](https://github.com/jrobinso/h5-indexer) to load groups and datasets on demand as needed,  enabling
