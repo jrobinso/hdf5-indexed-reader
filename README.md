@@ -8,8 +8,8 @@ web.   Runs in node and the browser (for browser build ```npm run build``` and i
 hdf5-indexed-reader works in conjunction with hdf5 files indexed with the companion python project  
 [h5-indexer](https://github.com/jrobinso/h5-indexer) to load groups and datasets on demand as needed,  enabling
 support of large files that would overwhelm browser memory. The project's focus is on support of schemas with 
-potentially many (10s of thousands or more) datasets.  Building  indeces for the datsets in such files can result in 
-thousands of seeks over disparate regions of the file for small  amounts of data. The cost of such seeks for local 
+potentially many (10s of thousands or more) datasets.  Loading such files can result in 
+thousands of seeks over disparate regions of the file to build the internal b-tree indeces. The cost of such seeks for local 
 files with fast disks are minimal, but for asynchronous  reading over the web the explosion of http requests can 
 quickly freeze an application.  This project addresses this  issue by supporting an external index for the containers 
 (groups and datasets) file offsets.  
