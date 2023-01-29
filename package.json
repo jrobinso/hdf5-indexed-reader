@@ -2,10 +2,10 @@
   "name": "hdf5-indexed-reader",
   "version": "0.1.0",
   "description": "An extension of jsfive for fast, on-demand reading of remote hdf5 files",
-  "module": "./dist/hdf5-indexed-reader.esm.js",
+  "module": "dist/hdf5-indexedReader.esm.js",
   "scripts": {
     "build": "npx rollup --config --bundleConfigAsCjs",
-    "test": "mocha -u tdd -r esm"
+    "test": "mocha -u tdd -r esm test/testCNDBRemote.js"
   },
   "repository": {
     "type": "git",

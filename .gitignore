@@ -5,4 +5,4 @@
 /.idea/
 /test/spleen_full.index.json
 /test/spleen_1chr1rep.indexed.cndb
-/test/testCNDBLocal.js
+/test/testCNDBBig.js
