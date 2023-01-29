@@ -5,7 +5,7 @@ export default [
     {
         input: 'src/index.js',
         output: [
-            {file: 'dist/hdf5-indexedReader.esm.js', format: 'es'}
+            {file: 'dist/hdf5-indexed-reader.esm.js', format: 'es'}
         ]
     }
 
