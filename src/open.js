@@ -2,7 +2,7 @@ import RemoteFile from "./io/remoteFile.js"
 import BufferedFile from "./io/bufferedFile.js"
 import NodeLocalFile from "./io/nodeLocalFile.js"
 import BrowserLocalFile from "./io/browserLocalFile.js"
-import {File, Group} from "./jsfive/index.mjs"
+import {File} from "./jsfive/index.mjs"
 
 async function openH5File(options) {
 
