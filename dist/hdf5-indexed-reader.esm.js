@@ -15,7 +15,7 @@ class RemoteFile {
 
     async read(position, length) {
 
-        //console.log(`read ${position}   ${length}`)
+        console.log(`${position} - ${position + length} (${length})`);
 
         const headers = this.config.headers || {};
 
@@ -217,6 +217,8 @@ class NodeLocalFile {
 
 
     async read(position, length) {
+
+        console.log(`${position} - ${position + length} (${length})`);
 
         const fd = fs.openSync(this.path, 'r');
         position = position || 0;
@@ -4041,6 +4043,28 @@ var DataObjects = class {
     }
     return Object.fromEntries(links);
   }
+
+  async find_link(name) {
+    if(this._links) {
+      for(link of this._links) {
+        if(name === link[0]) {
+          return link
+        }
+      }
+    } else {
+      const links = [];
+      for await (const link of this.iter_links()) {
+        if (name === link[0]) {
+          return link
+        }
+        links.push(link);
+      }
+      // If we get this far we've walked the whole tree.  Set the links field to avoid another walk with get_links()
+      this._links = links;
+    }
+    return undefined;
+  }
+
   async *iter_links() {
     for (let msg of this.msgs) {
       if (msg.get("type") == SYMBOL_TABLE_MSG_TYPE) {
@@ -4578,6 +4602,20 @@ var File = class extends Group {
     this.parent = this;
     this.file = this;
     this.name = "/";
+
+    if (!this.index) {
+      const indexName = this.indexName || "_index";
+      const index_link = await dataobjects.find_link(indexName);
+      if (index_link) {
+        const dataobject = new DataObjects(fh, index_link[1]);
+        await dataobject.ready;
+         const comp_index_data = await dataobject.get_data();
+         const inflated = ungzip_1(comp_index_data);
+         const json = new TextDecoder().decode(inflated);
+         this.index = JSON.parse(json);
+      }
+    }
+
     if (this.index && this.name in this.index) {
       this._links = this.index[this.name];
     } else {
@@ -4590,18 +4628,7 @@ var File = class extends Group {
     this.filename = filename || "";
     this.mode = "r";
     this.userblock_size = 0;
-    if (!this.index) {
-      const indexName = this.indexName || "_index";
-      const keySet = new Set(await this.keys);
-      if (keySet.has(indexName)) {
-        const index_dataset = await this.get(indexName);
-        await index_dataset.ready;
-        const comp_index_data = await index_dataset.value;
-        const inflated = ungzip_1(comp_index_data);
-        const json = new TextDecoder().decode(inflated);
-        this.index = JSON.parse(json);
-      }
-    }
+
   }
   _get_object_by_address(obj_addr) {
     if (this._dataobjects.offset == obj_addr) {
@@ -4664,7 +4691,7 @@ async function openH5File(options) {
     const isRemote = options.url !== undefined;
     let fileReader = getReaderFor(options);
     if (isRemote) {
-        fileReader = new BufferedFile({file: fileReader, size: 4000});
+        fileReader = new BufferedFile({file: fileReader, size: 2000});
     }
     const asyncBuffer = new AsyncBuffer(fileReader);
 

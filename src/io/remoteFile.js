@@ -11,7 +11,7 @@ class RemoteFile {
 
     async read(position, length) {
 
-        //console.log(`read ${position}   ${length}`)
+        //console.log(`${position} - ${position + length} (${length})`)
 
         const headers = this.config.headers || {}
 

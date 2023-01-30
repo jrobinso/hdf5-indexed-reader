@@ -20,6 +20,8 @@ class NodeLocalFile {
 
     async read(position, length) {
 
+        //console.log(`${position} - ${position + length} (${length})`)
+
         const fd = fs.openSync(this.path, 'r')
         position = position || 0
         length = length || fs.statSync(this.path).size

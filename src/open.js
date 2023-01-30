@@ -10,7 +10,7 @@ async function openH5File(options) {
     const isRemote = options.url !== undefined
     let fileReader = getReaderFor(options)
     if (isRemote) {
-        fileReader = new BufferedFile({file: fileReader, size: 4000})
+        fileReader = new BufferedFile({file: fileReader, size: 2000})
     }
     const asyncBuffer = new AsyncBuffer(fileReader)
 
