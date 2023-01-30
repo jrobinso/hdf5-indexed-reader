@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.8/themes/default/style.min.css"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.8/jstree.min.js"></script>
+    <link rel="stylesheet" href="css/h5webview.css"/>
+
+</head>
+<body>
+
+<input type="file" id="fileButton" style="display: none"/>
+
+<div class="topnav">
+    <a class="active" href="#home">HDF Webview</a>
+    <a id="fileButtonLink" style="cursor: pointer">Local File</a>
+    <a id="urlButton" style="cursor: pointer">URL</a>
+</div>
+
+<div id="urlDiv" style="display:none">
+    <label for="urlInput">URL:</label>
+    <input id="urlInput" type="text" style="width: 800px;margin-top:20px;margin-bottom: 20px"/>
+    <button id="loadURLButton">Load</button>
+    <br/>
+    <div id="loadingMessage" style="display:none;font-size:larger;color:blue">Loading ...</div>
+</div>
+
+
+<h1>HDF5 object structure viewer</h1>
+
+View the object layout and basic information about nodes from an HDF5 file.  Remote files must be indexed.
+
+To get started use the "Local File" or "URL" buttons to load a file.  Click tree nodes for basic info.
+
+
+<div class="container">
+    <div class="flex-grid">
+        <aside class="col sidebar">
+            <div id="treeContainer"></div>
+        </aside>
+        <section class="col main">
+            <pre id="content"></pre>
+        </section>
+    </div>
+</div>
+
+<script type="module">
+
+    import {openH5File} from "./hdf5-indexed-reader.esm.js"
+
+    // URL button
+    const urlInput = document.getElementById("urlInput")
+    const urlDiv = document.getElementById("urlDiv")
+
+    // URL Button will toggle input area visibility
+    document.getElementById("urlButton").addEventListener("click", () => {
+        urlDiv.style.display = "none" === urlDiv.style.display ? "inline-block" : "none"
+    })
+
+    // Load button to trigger load
+    document.getElementById("loadURLButton").addEventListener("click", async () => {
+        document.getElementById("loadingMessage").style.display="inline-block"
+        await testCNDB({url: urlInput.value}, urlDiv)
+        document.getElementById("loadingMessage").style.display="none"
+    })
+
+
+    // File button
+    document.getElementById("fileButtonLink").addEventListener("click", () => document.getElementById("fileButton").click())
+    const fileButton = document.getElementById("fileButton")
+    fileButton.addEventListener("change", (e) => {
+        const fileList = fileButton.files
+        if (fileList.length > 0) {
+            urlDiv.style.display = "none"
+            testCNDB({file: fileList[0]})
+        }
+    })
+
+
+    async function testCNDB(config) {
+
+        const hdfFile = await openH5File(config)
+        await hdfFile.ready
+
+        $('#treeContainer').empty()
+
+
+        // build tree
+        const treeData = await createTree(hdfFile)
+
+        const treeNode = document.createElement('div')
+        document.getElementById('treeContainer').appendChild(treeNode)
+
+        $(treeNode).jstree(treeData)
+        $(treeNode).on("changed.jstree", async (e, data) => {
+
+            const selectedElement = data.instance.get_selected(true)[0]
+
+            const node = selectedElement.original
+
+            const h5node = await hdfFile.get(node.h5key)
+            const h5type = node.h5type ? node.h5type : (typeof h5node.keys === 'function' ? 'Dataset' : 'Group')
+
+
+            let infoTable = `
+            <table class="content-table">
+            <tr><td>Name:</td><td>${node.text}</td></tr>
+            <tr><td>Path:</td><td>${h5node.name}</td></tr>
+            <tr><td>Type:</td><td>${h5type}</td></tr>
+            <tr><td>Offset:</td><td>${h5node._dataobjects.offset}</td></tr>
+            `
+
+            if ('Dataset' === h5type) {
+                const shape = await h5node.shape
+                infoTable += `<tr><td>Shape:</td><td>${shape}</td></tr>`
+            } else {
+                infoTable += `<tr><td># Children:</td><td>${h5node.keys.length}</td></tr>`
+            }
+
+            infoTable += '</table>'
+
+            document.getElementById("content").innerHTML = infoTable
+
+        })
+
+        async function createTree(hdfFile) {
+
+            const rootGroup = await hdfFile.get('/')
+            const rootNode = {
+                text: hdfFile.filename,
+                state: {opened: true},
+                children: [],
+                h5type: "File",
+                h5key: '/'
+            }
+            await indexChildren(rootGroup, rootNode)
+
+            // Open direct children of top level nodes
+            for (let childNode of rootNode.children) {
+                childNode.state = {opened: true}
+            }
+
+            return {
+                'core': {
+                    'data': rootNode
+                }
+            }
+        }
+
+        async function indexChildren(group, node) {
+
+            const groupKeys = await group.keys
+
+            for (let key of groupKeys) {
+
+                const child = await group.get(key)
+
+                const isDataset = typeof child.keys === 'function'
+                const isGroup = !isDataset
+
+                const childNode = {
+                    text: getName(child.name),
+                    children: [],
+                    h5type: isGroup ? "Group" : "Dataset",
+                    h5key: child.name
+                }
+                node.children.push(childNode)
+
+                if (isGroup) {
+                    const childKeys = await child.keys
+                    if (childKeys.length <= 10) {
+                        await indexChildren(child, childNode)
+                    } else {
+                        for (let ckey of childKeys) {
+                            childNode.children.push(
+                                {
+                                    text: ckey,
+                                    h5key: `${child.name}/${ckey}`
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    function getName(path) {
+        return path.substring(path.lastIndexOf('/') + 1)
+    }
+</script>
+
+</body>
+</html>

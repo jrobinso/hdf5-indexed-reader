@@ -1,0 +1,52 @@
+.container {
+    margin: auto;
+    line-height: 1.5;
+    font-family: sans-serif;
+}
+
+.flex-grid {
+    display: flex;
+    margin: auto -1rem 1rem;
+}
+
+.col {
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
+    padding: 1rem;
+}
+
+.sidebar {
+    flex: 0 0 50px;
+}
+
+.main {
+    flex-grow: 1;
+}
+
+.content-table {
+    font-family: sans-serif;
+}
+
+.topnav {
+    overflow: hidden;
+    background-color: #333;
+}
+
+.topnav a {
+    float: left;
+    color: #f2f2f2;
+    text-align: center;
+    padding: 14px 16px;
+    text-decoration: none;
+    font-size: 17px;
+}
+
+.topnav a:hover {
+    background-color: #ddd;
+    color: black;
+}
+
+.topnav a.active {
+    background-color: #04AA6D;
+    color: white;
+}

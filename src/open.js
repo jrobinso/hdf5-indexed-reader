@@ -6,37 +6,41 @@ import {File} from "./jsfive/index.mjs"
 
 async function openH5File(options) {
 
-    let indexReader
-    let index
-    let filename
-    const isRemote = options.url !== undefined
-    if (options.indexURL) {
-        indexReader = new RemoteFile({url: options.indexURL})
-        filename = getFilename(options.indexURL)
-    } else if (options.indexPath) {
-        indexReader = new NodeLocalFile({path: options.indexPath})
-        filename = getFilename(options.indexPath)
-    } else if (options.indexFile) {
-        indexReader = new BrowserLocalFile({file: options.file})
-        filename = options.file.name
-    }
-    if (indexReader) {
-        const indexFileContents = await indexReader.read()
-        const indexFileJson = new TextDecoder().decode(indexFileContents)
-        index = JSON.parse(indexFileJson)
-    }
 
+    const isRemote = options.url !== undefined
     let fileReader = getReaderFor(options)
     if (isRemote) {
         fileReader = new BufferedFile({file: fileReader, size: 4000})
     }
     const asyncBuffer = new AsyncBuffer(fileReader)
 
+    // Option external index -- this is not common
+    const index = await readExternalIndex(options)
+
     // Create HDF5 file
+    const filename = getFilenameFor(options)
     const hdfFile = new File(asyncBuffer, filename, {index})
     await hdfFile.ready
     return hdfFile
+}
 
+async function readExternalIndex(options) {
+
+    let indexReader
+    if (options.indexURL) {
+        indexReader = new RemoteFile({url: options.indexURL})
+    } else if (options.indexPath) {
+        indexReader = new NodeLocalFile({path: options.indexPath})
+    } else if (options.indexFile) {
+        indexReader = new BrowserLocalFile({file: options.file})
+    }
+    if (indexReader) {
+        const indexFileContents = await indexReader.read()
+        const indexFileJson = new TextDecoder().decode(indexFileContents)
+        return JSON.parse(indexFileJson)
+    } else {
+        return undefined
+    }
 }
 
 
@@ -49,6 +53,16 @@ function getReaderFor(options) {
         return new BrowserLocalFile(options.file)
     } else {
         throw Error("One of 'url', 'path (node only)', or 'file (browser only)' must be specified")
+    }
+}
+
+function getFilenameFor(options) {
+    if (options.url) {
+        return getFilename(options.url)
+    } else if (options.path) {
+        return getFilename(options.path)
+    } else if (options.file) {
+        return options.file.name
     }
 }
 
