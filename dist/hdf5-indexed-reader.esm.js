@@ -15,7 +15,7 @@ class RemoteFile {
 
     async read(position, length) {
 
-        console.log(`${position} - ${position + length} (${length})`);
+        //console.log(`${position} - ${position + length} (${length})`)
 
         const headers = this.config.headers || {};
 
@@ -218,7 +218,7 @@ class NodeLocalFile {
 
     async read(position, length) {
 
-        console.log(`${position} - ${position + length} (${length})`);
+        //console.log(`${position} - ${position + length} (${length})`)
 
         const fd = fs.openSync(this.path, 'r');
         position = position || 0;
@@ -4036,35 +4036,32 @@ var DataObjects = class {
     offset += struct.calcsize(chunk_fmt);
     return [header, creation_order_size, offset];
   }
-  async get_links() {
-    const links = [];
-    for await (const link of this.iter_links()) {
-      links.push(link);
-    }
-    return Object.fromEntries(links);
-  }
-
   async find_link(name) {
-    if(this._links) {
-      for(link of this._links) {
-        if(name === link[0]) {
-          return link
+    if (this._links) {
+      for (link of this._links) {
+        if (name === link[0]) {
+          return link;
         }
       }
     } else {
       const links = [];
-      for await (const link of this.iter_links()) {
-        if (name === link[0]) {
-          return link
+      for await (const link2 of this.iter_links()) {
+        if (name === link2[0]) {
+          return link2;
         }
-        links.push(link);
+        links.push(link2);
       }
-      // If we get this far we've walked the whole tree.  Set the links field to avoid another walk with get_links()
       this._links = links;
     }
-    return undefined;
+    return void 0;
   }
-
+  async get_links() {
+    const links = [];
+    for await (const link2 of this.iter_links()) {
+      links.push(link2);
+    }
+    return Object.fromEntries(links);
+  }
   async *iter_links() {
     for (let msg of this.msgs) {
       if (msg.get("type") == SYMBOL_TABLE_MSG_TYPE) {
@@ -4602,20 +4599,18 @@ var File = class extends Group {
     this.parent = this;
     this.file = this;
     this.name = "/";
-
     if (!this.index) {
       const indexName = this.indexName || "_index";
       const index_link = await dataobjects.find_link(indexName);
       if (index_link) {
         const dataobject = new DataObjects(fh, index_link[1]);
         await dataobject.ready;
-         const comp_index_data = await dataobject.get_data();
-         const inflated = ungzip_1(comp_index_data);
-         const json = new TextDecoder().decode(inflated);
-         this.index = JSON.parse(json);
+        const comp_index_data = await dataobject.get_data();
+        const inflated = ungzip_1(comp_index_data);
+        const json = new TextDecoder().decode(inflated);
+        this.index = JSON.parse(json);
       }
     }
-
     if (this.index && this.name in this.index) {
       this._links = this.index[this.name];
     } else {
@@ -4628,7 +4623,6 @@ var File = class extends Group {
     this.filename = filename || "";
     this.mode = "r";
     this.userblock_size = 0;
-
   }
   _get_object_by_address(obj_addr) {
     if (this._dataobjects.offset == obj_addr) {
@@ -4765,4 +4759,43 @@ function getFilename(pathOrURL) {
     return idx > 0 ? pathOrURL.substring(idx + 1) : pathOrURL
 }
 
-export { openH5File };
+function unflattenIndex(index) {
+
+    const makeObject = (name) => {
+        return {name: name, children: []}
+    };
+
+    const objectMap = {};
+
+    for (let key of Object.keys(index)) {
+
+        let obj;
+        if (objectMap.hasOwnProperty(key)) {
+            obj = objectMap[key];
+        } else {
+            obj = makeObject(key);
+            objectMap[key] = obj;
+        }
+
+        const tmp = index[key];
+        for (let childName of Object.keys(tmp)) {
+            let child;
+            const childKey = key + (key.endsWith('/') ? '' : '/') + childName;
+            if (objectMap.hasOwnProperty(childKey)) {
+                child = objectMap[childKey];
+            } else {
+                child = makeObject(childKey);
+                objectMap[childKey] = child;
+            }
+            obj.children.push(child);
+        }
+
+    }
+
+    const rootObject = objectMap['/'];
+
+    return rootObject
+
+}
+
+export { openH5File, unflattenIndex };
