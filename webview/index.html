@@ -31,9 +31,9 @@
 
 <h1>HDF5 object structure viewer</h1>
 
-View the object layout and basic information about nodes from an HDF5 file.  Remote files must be indexed.
+View the object layout and basic information about nodes from an HDF5 file. Remote files must be indexed.
 
-To get started use the "Local File" or "URL" buttons to load a file.  Click tree nodes for basic info.
+To get started use the "Local File" or "URL" buttons to load a file. Click tree nodes for basic info.
 
 
 <div class="container">
@@ -42,29 +42,30 @@ To get started use the "Local File" or "URL" buttons to load a file.  Click tree
             <div id="treeContainer"></div>
         </aside>
         <section class="col main">
-            <pre id="content"></pre>
+            <div id="content"></div>
         </section>
     </div>
 </div>
 
 <script type="module">
 
-    import {openH5File} from "./hdf5-indexed-reader.esm.js"
+    import {openH5File} from "../dist/hdf5-indexed-reader.esm.js"
+    import {createNodeMap} from "./js/util.js"
 
-    // URL button
+    // URL top menu button
     const urlInput = document.getElementById("urlInput")
     const urlDiv = document.getElementById("urlDiv")
 
-    // URL Button will toggle input area visibility
+    // URL Button will toggle URL input div visibility
     document.getElementById("urlButton").addEventListener("click", () => {
         urlDiv.style.display = "none" === urlDiv.style.display ? "inline-block" : "none"
     })
 
     // Load button to trigger load
     document.getElementById("loadURLButton").addEventListener("click", async () => {
-        document.getElementById("loadingMessage").style.display="inline-block"
-        await testCNDB({url: urlInput.value}, urlDiv)
-        document.getElementById("loadingMessage").style.display="none"
+        document.getElementById("loadingMessage").style.display = "inline-block"
+        await loadH5File({url: urlInput.value}, urlDiv)
+        document.getElementById("loadingMessage").style.display = "none"
     })
 
 
@@ -75,104 +76,138 @@ To get started use the "Local File" or "URL" buttons to load a file.  Click tree
         const fileList = fileButton.files
         if (fileList.length > 0) {
             urlDiv.style.display = "none"
-            testCNDB({file: fileList[0]})
+            loadH5File({file: fileList[0]})
         }
     })
 
 
-    async function testCNDB(config) {
+    async function loadH5File(config) {
 
         const hdfFile = await openH5File(config)
         await hdfFile.ready
 
         $('#treeContainer').empty()
-
+        $("#content").empty()
 
         // build tree
         const treeData = await createTree(hdfFile)
 
-        const treeNode = document.createElement('div')
-        document.getElementById('treeContainer').appendChild(treeNode)
+        if(treeData) {
+            const treeNode = document.createElement('div')
+            document.getElementById('treeContainer').appendChild(treeNode)
 
-        $(treeNode).jstree(treeData)
-        $(treeNode).on("changed.jstree", async (e, data) => {
+            $(treeNode).jstree(treeData)
+            $(treeNode).on("changed.jstree", async (e, data) => {
 
-            const selectedElement = data.instance.get_selected(true)[0]
+                const selectedElement = data.instance.get_selected(true)[0]
+                const node = selectedElement.original
+                let infoTable
+                if (node.h5key) {
+                    const h5node = await hdfFile.get(node.h5key)
+                    const h5type = typeof h5node.keys === 'function' ? 'Dataset' : 'Group'
 
-            const node = selectedElement.original
-
-            const h5node = await hdfFile.get(node.h5key)
-            const h5type = node.h5type ? node.h5type : (typeof h5node.keys === 'function' ? 'Dataset' : 'Group')
-
-
-            let infoTable = `
+                    infoTable = `
             <table class="content-table">
             <tr><td>Name:</td><td>${node.text}</td></tr>
             <tr><td>Path:</td><td>${h5node.name}</td></tr>
             <tr><td>Type:</td><td>${h5type}</td></tr>
             <tr><td>Offset:</td><td>${h5node._dataobjects.offset}</td></tr>
             `
+                    if ('Dataset' === h5type) {
+                        const shape = await h5node.shape
+                        infoTable += `<tr><td>Shape:</td><td>${shape}</td></tr>`
+                    } else {
+                        infoTable += `<tr><td># Children:</td><td>${h5node.keys.length}</td></tr>`
+                    }
+                    infoTable += '</table>'
+                } else {
+                    infoTable = ''
+                }
 
-            if ('Dataset' === h5type) {
-                const shape = await h5node.shape
-                infoTable += `<tr><td>Shape:</td><td>${shape}</td></tr>`
-            } else {
-                infoTable += `<tr><td># Children:</td><td>${h5node.keys.length}</td></tr>`
-            }
-
-            infoTable += '</table>'
-
-            document.getElementById("content").innerHTML = infoTable
-
-        })
+                document.getElementById("content").innerHTML = infoTable
+            })
+        }
 
         async function createTree(hdfFile) {
+            if (hdfFile.index) {
+                return _createTreeFromIndex(hdfFile.index)
+            } else {
+                alert("Non indexed files not currently supported")
+                return undefined
+                //return await _createTreeFromObjects(hdfFile, addchildren)
+            }
+        }
+
+        function _createTreeFromIndex(index) {
+
+            // Unflatten the index
+            const nodeMap = createNodeMap(index, hdfFile.filename)
+
+            return {
+                'core': {
+                    'data': function (obj, cb) {
+                        let id = obj.id
+                        let nodes = nodeMap.get(id) || []
+                        if (nodes.length > 10) {
+                            const sample = nodes.slice(0, 10)
+                            sample.push({
+                                text: `${nodes[10].text}-${nodes[nodes.length - 1].text}`
+                            })
+                            nodes = sample
+                        }
+                        cb(nodes)
+                    }
+                }
+            }
+
+        }
+
+        async function _createTreeFromObjects(hdfFile, addchildren) {
 
             const rootGroup = await hdfFile.get('/')
             const rootNode = {
                 text: hdfFile.filename,
                 state: {opened: true},
-                children: [],
-                h5type: "File",
+                children: true,
                 h5key: '/'
             }
-            await indexChildren(rootGroup, rootNode)
+
+            await addchildren(rootGroup, rootNode)
 
             // Open direct children of top level nodes
             for (let childNode of rootNode.children) {
                 childNode.state = {opened: true}
             }
 
+
             return {
                 'core': {
-                    'data': rootNode
+                    'data': function (obj, cb) {
+                        cb.call(this,
+                            ['Root 1', 'Root 2'])
+                    }
                 }
             }
         }
 
-        async function indexChildren(group, node) {
+
+        async function addchildren(group, node) {
 
             const groupKeys = await group.keys
 
             for (let key of groupKeys) {
-
                 const child = await group.get(key)
-
-                const isDataset = typeof child.keys === 'function'
-                const isGroup = !isDataset
-
                 const childNode = {
                     text: getName(child.name),
                     children: [],
-                    h5type: isGroup ? "Group" : "Dataset",
                     h5key: child.name
                 }
                 node.children.push(childNode)
 
-                if (isGroup) {
+                if (typeof child.keys !== 'function') {
                     const childKeys = await child.keys
                     if (childKeys.length <= 10) {
-                        await indexChildren(child, childNode)
+                        await addchildren(child, childNode)
                     } else {
                         for (let ckey of childKeys) {
                             childNode.children.push(
@@ -186,6 +221,8 @@ To get started use the "Local File" or "URL" buttons to load a file.  Click tree
                 }
             }
         }
+
+
     }
 
     function getName(path) {
