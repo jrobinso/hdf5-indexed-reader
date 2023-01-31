@@ -15,7 +15,7 @@ class RemoteFile {
 
     async read(position, length) {
 
-        //console.log(`${position} - ${position + length} (${length})`)
+        console.log(`${position} - ${position + length} (${length})`);
 
         const headers = this.config.headers || {};
 
@@ -85,117 +85,93 @@ function addParameter(url, name, value) {
     return url + paramSeparator + name + "=" + value
 }
 
-class BufferedFile {
+class BufferedFile2 {
 
     constructor(args) {
         this.file = args.file;
         this.size = args.size || 16000;
-        this.position = 0;
-        this.bufferStart = 0;
-        this.bufferLength = 0;
-        this.buffer = undefined;
+        this.buffers = [];
+        this.maxBuffersLength = 1;
     }
 
-
     async read(position, length) {
-
-        const start = position;
-        const end = position + length;
-        const bufferStart = this.bufferStart;
-        const bufferEnd = this.bufferStart + this.bufferLength;
-
 
         if (length > this.size) {
             // Request larger than max buffer size,  pass through to underlying file
             //console.log("0")
-            this.buffer = undefined;
-            this.bufferStart = 0;
-            this.bufferLength = 0;
             return this.file.read(position, length)
         }
 
-        if (start >= bufferStart && end <= bufferEnd) {
-            // Request within buffer bounds
-            //console.log("1")
+        let buffer = this.findBuffer(position, length);
+
+        if (buffer) {
+            const start = position;
+            const bufferStart = buffer.start;
             const sliceStart = start - bufferStart;
             const sliceEnd = sliceStart + length;
-            return this.buffer.slice(sliceStart, sliceEnd)
-        }
+            return buffer.slice(sliceStart, sliceEnd)
 
-        else if (start < bufferStart && end > bufferStart) {
-            // Overlap left, here for completness but this is an unexpected case in straw.  We don't adjust the buffer.
-            //console.log("2")
-            const l1 = bufferStart - start;
-            const a1 = await this.file.read(position, l1);
-            const l2 = length - l1;
-            if (l2 > 0) {
-                //this.buffer = await this.file.read(bufferStart, this.size)
-                const a2 = this.buffer.slice(0, l2);
-                return concatBuffers(a1, a2)
-            } else {
-                return a1
-            }
+        } else {
+            // No overlap with any existing buffer
 
-        }
+            const bufferStart = Math.max(0, position - 10);
+            const bufferData = await this.file.read(bufferStart, this.size);
+            const bufferLength = bufferData.byteLength;
+            buffer = new Buffer$1(bufferStart, bufferLength, bufferData);
+            this.addBuffer(buffer);
 
-        else if (start < bufferEnd && end > bufferEnd) {
-            // Overlap right
-            // console.log("3")
-            const l1 = bufferEnd - start;
-            const sliceStart = this.bufferLength - l1;
-            const a1 = this.buffer.slice(sliceStart, this.bufferLength);
-
-            const l2 = length - l1;
-            if (l2 > 0) {
-                try {
-                    this.buffer = await this.file.read(bufferEnd, this.size);
-                    this.bufferStart = bufferEnd;
-                    this.bufferLength = this.buffer.byteLength;
-                    const a2 = this.buffer.slice(0, l2);
-                    return concatBuffers(a1, a2)
-                } catch (e) {
-                    // A "unsatisfiable range" error is expected here if we overlap past the end of file
-                    if (e.code && e.code === 416) {
-                        return a1
-                    }
-                    else {
-                        throw e
-                    }
-                }
-
-            } else {
-                return a1
-            }
-
-        }
-
-        else {
-            // No overlap with buffer
-            // console.log("4")
-            this.buffer = await this.file.read(position, this.size);
-            this.bufferStart = position;
-            this.bufferLength = this.buffer.byteLength;
-            return this.buffer.slice(0, length)
+            const sliceStart = position - bufferStart;
+            const sliceEnd = sliceStart + length;
+            return buffer.slice(sliceStart, sliceEnd)
         }
 
     }
 
+    addBuffer(buffer) {
+        if (this.buffers.length > this.maxBuffersLength) {
+            this.buffers = this.buffers.slice(1);
+        }
+        this.buffers.push(buffer);
+    }
+
+    findBuffer(start, length) {
+        for (let buffer of this.buffers) {
+            if (buffer.contains(start, start + length)) {
+                return buffer
+            }
+        }
+        // for (let buffer of this.buffers) {
+        //     if (buffer.overlaps(start, start + length)) {
+        //         return buffer
+        //     }
+        // }
+        return undefined
+    }
+
+
 }
 
-/**
- * concatenates 2 array buffers.
- * Credit: https://gist.github.com/72lions/4528834
- *
- * @private
- * @param {ArrayBuffers} buffer1 The first buffer.
- * @param {ArrayBuffers} buffer2 The second buffer.
- * @return {ArrayBuffers} The new ArrayBuffer created out of the two.
- */
-var concatBuffers = function (buffer1, buffer2) {
-    var tmp = new Uint8Array(buffer1.byteLength + buffer2.byteLength);
-    tmp.set(new Uint8Array(buffer1), 0);
-    tmp.set(new Uint8Array(buffer2), buffer1.byteLength);
-    return tmp.buffer;
+let Buffer$1 = class Buffer {
+
+    constructor(bufferStart, bufferLength, buffer) {
+        this.start = bufferStart;
+        this.length = bufferLength;
+        this.end = bufferStart + bufferLength;
+        this.buffer = buffer;
+    }
+
+    slice(start, end) {
+        return this.buffer.slice(start, end)
+    }
+
+    contains(start, end) {
+        return start >= this.start && end <= this.end
+    }
+
+    overlaps(start, end) {
+        return (start > this.start && start < this.end) || (end > this.start && end < this.end)
+    }
+
 };
 
 let fs;
@@ -218,7 +194,7 @@ class NodeLocalFile {
 
     async read(position, length) {
 
-        //console.log(`${position} - ${position + length} (${length})`)
+        console.log(`${position} - ${position + length} (${length})`);
 
         const fd = fs.openSync(this.path, 'r');
         position = position || 0;
@@ -4588,6 +4564,9 @@ var File = class extends Group {
     if (options && options.indexName) {
       this.indexName = options.indexName;
     }
+    if (options && options.indexOffset) {
+      this.indexOffset = options.indexOffset;
+    }
     this.ready = this.init(fh, filename);
   }
   async init(fh, filename) {
@@ -4600,15 +4579,20 @@ var File = class extends Group {
     this.file = this;
     this.name = "/";
     if (!this.index) {
-      const indexName = this.indexName || "_index";
-      const index_link = await dataobjects.find_link(indexName);
-      if (index_link) {
-        const dataobject = new DataObjects(fh, index_link[1]);
-        await dataobject.ready;
-        const comp_index_data = await dataobject.get_data();
-        const inflated = ungzip_1(comp_index_data);
-        const json = new TextDecoder().decode(inflated);
-        this.index = JSON.parse(json);
+      if (this.indexOffset) {
+        try {
+          this.index = await this._load_index(fh, this.indexOffset);
+        } catch (e) {
+          console.error(`Error loading index by offset ${e}`);
+        }
+      }
+      if (!this.index) {
+        const indexName = this.indexName || "_index";
+        const index_link = await dataobjects.find_link(indexName);
+        console.log(index_link);
+        if (index_link) {
+          this.index = await this._load_index(fh, index_link[1]);
+        }
       }
     }
     if (this.index && this.name in this.index) {
@@ -4623,6 +4607,14 @@ var File = class extends Group {
     this.filename = filename || "";
     this.mode = "r";
     this.userblock_size = 0;
+  }
+  async _load_index(fh, index_offset) {
+    const dataobject = new DataObjects(fh, index_offset);
+    await dataobject.ready;
+    const comp_index_data = await dataobject.get_data();
+    const inflated = ungzip_1(comp_index_data);
+    const json = new TextDecoder().decode(inflated);
+    return JSON.parse(json);
   }
   _get_object_by_address(obj_addr) {
     if (this._dataobjects.offset == obj_addr) {
@@ -4684,17 +4676,21 @@ async function openH5File(options) {
 
     const isRemote = options.url !== undefined;
     let fileReader = getReaderFor(options);
+    const bufferSize = options.bufferSize || 4000;
     if (isRemote) {
-        fileReader = new BufferedFile({file: fileReader, size: 2000});
+        fileReader = new BufferedFile2({file: fileReader, size: bufferSize});
     }
     const asyncBuffer = new AsyncBuffer(fileReader);
 
-    // Option external index -- this is not common
+    // Optional external index -- this is not common
     const index = await readExternalIndex(options);
+
+    // Optional file offset to index dataset -- optimization, not common.
+    const indexOffset = options.indexOffset;
 
     // Create HDF5 file
     const filename = getFilenameFor(options);
-    const hdfFile = new File(asyncBuffer, filename, {index});
+    const hdfFile = new File(asyncBuffer, filename, {index, indexOffset});
     await hdfFile.ready;
     return hdfFile
 }

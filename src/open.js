@@ -1,5 +1,6 @@
 import RemoteFile from "./io/remoteFile.js"
 import BufferedFile from "./io/bufferedFile.js"
+import BufferedFile2 from "./io/bufferedFile2.js"
 import NodeLocalFile from "./io/nodeLocalFile.js"
 import BrowserLocalFile from "./io/browserLocalFile.js"
 import {File} from "./jsfive/index.mjs"
@@ -9,17 +10,21 @@ async function openH5File(options) {
 
     const isRemote = options.url !== undefined
     let fileReader = getReaderFor(options)
+    const bufferSize = options.bufferSize || 4000
     if (isRemote) {
-        fileReader = new BufferedFile({file: fileReader, size: 2000})
+        fileReader = new BufferedFile2({file: fileReader, size: bufferSize})
     }
     const asyncBuffer = new AsyncBuffer(fileReader)
 
-    // Option external index -- this is not common
+    // Optional external index -- this is not common
     const index = await readExternalIndex(options)
+
+    // Optional file offset to index dataset -- optimization, not common.
+    const indexOffset = options.indexOffset
 
     // Create HDF5 file
     const filename = getFilenameFor(options)
-    const hdfFile = new File(asyncBuffer, filename, {index})
+    const hdfFile = new File(asyncBuffer, filename, {index, indexOffset})
     await hdfFile.ready
     return hdfFile
 }

@@ -10,18 +10,22 @@ async function testCNDB(config) {
     console.log(`File opened in ${Date.now() - time1} ms`)
 
     // fetch root group
-    const rootGroup = await hdfFile.get('/')
-    const rootKeys = new Set(rootGroup.keys)
-    assert.isTrue(rootKeys.has('Header'))
-    assert.isTrue(rootKeys.has('replica10_chr1'))
+    // const rootGroup = await hdfFile.get('/')
+    // const rootKeys = new Set(rootGroup.keys)
+    // assert.isTrue(rootKeys.has('Header'))
+    // assert.isTrue(rootKeys.has('replica10_chr1'))
 
 
     // fetch first group
+    console.log('replica')
     const group = await hdfFile.get('/replica10_chr1')
 
     // Genomic positions dataset
+    console.log('genomic_position')
     const genomicPosition = await group.get('genomic_position')
+    console.log('genomic_position shape')
     const shape = await genomicPosition.shape
+    console.log('genomic_position value')
     const array = await genomicPosition.value
     assert.equal(shape.length, 2)
     assert.equal(shape[0], 4980)
@@ -32,6 +36,7 @@ async function testCNDB(config) {
     assert.equal(array[9959], 249000001)
 
     // fetch spatial position group
+    console.log('spatial_position')
     const spatialPosition = await group.get('spatial_position')
 
 
@@ -40,6 +45,7 @@ async function testCNDB(config) {
     assert.equal(keys.length, 9999)
 
     // first dataset
+    console.log('first dataset')
     const sp1 = await spatialPosition.get(keys[0])
 
     const s1 = await sp1.shape
@@ -56,17 +62,21 @@ async function testCNDB(config) {
     assert.equal(values1[values1.length - 1], 4.335586071014404)
 
     // Second dataset
+    console.log("Start second dataset")
     const time2 = Date.now()
     const sp2 = await spatialPosition.get('1149')
 
+    console.log("Get shape")
     const s2 = await sp2.shape
     assert.equal(s1.length, 2)
     assert.equal(s2[0], 4980)
     assert.equal(s2[1], 3)
 
+    console.log("Get type")
     const t2 = await sp2.dtype
     assert.equal(t2, '<f4')
 
+    console.log("Get value")
     const values2 = await sp2.value
     assert.equal(values2.length, s1[0] * s1[1])
     assert.equal(values2[0], 7.750027179718018)

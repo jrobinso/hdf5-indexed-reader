@@ -6084,6 +6084,9 @@ var File = class extends Group {
     if (options && options.indexName) {
       this.indexName = options.indexName;
     }
+    if (options && options.indexOffset) {
+      this.indexOffset = options.indexOffset;
+    }
     this.ready = this.init(fh, filename);
   }
   async init(fh, filename) {
@@ -6096,15 +6099,20 @@ var File = class extends Group {
     this.file = this;
     this.name = "/";
     if (!this.index) {
-      const indexName = this.indexName || "_index";
-      const index_link = await dataobjects.find_link(indexName);
-      if (index_link) {
-        const dataobject = new DataObjects(fh, index_link[1]);
-        await dataobject.ready;
-        const comp_index_data = await dataobject.get_data();
-        const inflated = ungzip_1(comp_index_data);
-        const json = new TextDecoder().decode(inflated);
-        this.index = JSON.parse(json);
+      if (this.indexOffset) {
+        try {
+          this.index = await this._load_index(fh, this.indexOffset);
+        } catch (e) {
+          console.error(`Error loading index by offset ${e}`);
+        }
+      }
+      if (!this.index) {
+        const indexName = this.indexName || "_index";
+        const index_link = await dataobjects.find_link(indexName);
+        console.log(index_link);
+        if (index_link) {
+          this.index = await this._load_index(fh, index_link[1]);
+        }
       }
     }
     if (this.index && this.name in this.index) {
@@ -6119,6 +6127,14 @@ var File = class extends Group {
     this.filename = filename || "";
     this.mode = "r";
     this.userblock_size = 0;
+  }
+  async _load_index(fh, index_offset) {
+    const dataobject = new DataObjects(fh, index_offset);
+    await dataobject.ready;
+    const comp_index_data = await dataobject.get_data();
+    const inflated = ungzip_1(comp_index_data);
+    const json = new TextDecoder().decode(inflated);
+    return JSON.parse(json);
   }
   _get_object_by_address(obj_addr) {
     if (this._dataobjects.offset == obj_addr) {
