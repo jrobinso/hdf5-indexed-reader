@@ -83,6 +83,11 @@ To get started use the "Local File" or "URL" buttons to load a file. Click tree 
 
     async function loadH5File(config) {
 
+        // Experiment with known index offset
+        if("https://dl.dropboxusercontent.com/s/9bcgdsk6u4iqi0m/spleen_full.indexed.cndb?dl=0" === config.url) {
+            config.indexOffset = 129268695620
+        }
+
         const hdfFile = await openH5File(config)
         await hdfFile.ready
 

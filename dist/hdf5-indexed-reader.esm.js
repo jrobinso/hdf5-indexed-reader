@@ -194,7 +194,7 @@ class NodeLocalFile {
 
     async read(position, length) {
 
-        console.log(`${position} - ${position + length} (${length})`);
+        //console.log(`${position} - ${position + length} (${length})`)
 
         const fd = fs.openSync(this.path, 'r');
         position = position || 0;
@@ -3907,10 +3907,12 @@ var DataObjects = class {
       }
     } else {
       let [getter, big_endian, size] = dtype_getter(dtype);
-      let view = new DataView64(buf, 0);
+      const arrayBuffer = await buf.slice(offset, offset + count * size);
+      let view = new DataView64(arrayBuffer, 0);
+      let bufferOffset = 0;
       for (var i = 0; i < count; i++) {
-        value[i] = view[getter](offset, !big_endian, size);
-        offset += size;
+        value[i] = view[getter](bufferOffset, !big_endian, size);
+        bufferOffset += size;
       }
     }
     return value;
@@ -4558,18 +4560,9 @@ var Group = class {
 var File = class extends Group {
   constructor(fh, filename, options) {
     super("/", null);
-    if (options && options.index) {
-      this.index = options.index;
-    }
-    if (options && options.indexName) {
-      this.indexName = options.indexName;
-    }
-    if (options && options.indexOffset) {
-      this.indexOffset = options.indexOffset;
-    }
-    this.ready = this.init(fh, filename);
+    this.ready = this.init(fh, filename, options);
   }
-  async init(fh, filename) {
+  async init(fh, filename, options) {
     var superblock = new SuperBlock(fh, 0);
     await superblock.ready;
     var offset = await superblock.get_offset_to_dataobjects();
@@ -4578,20 +4571,44 @@ var File = class extends Group {
     this.parent = this;
     this.file = this;
     this.name = "/";
-    if (!this.index) {
-      if (this.indexOffset) {
-        try {
-          this.index = await this._load_index(fh, this.indexOffset);
-        } catch (e) {
-          console.error(`Error loading index by offset ${e}`);
+    this._dataobjects = dataobjects;
+    this._attrs = null;
+    this._keys = null;
+    this._fh = fh;
+    this.filename = filename || "";
+    this.mode = "r";
+    this.userblock_size = 0;
+    if (options && options.index) {
+      this.index = options.index;
+    } else {
+      let index_offset;
+      if (options && options.indexOffset) {
+        index_offset = options.indexOffset;
+        console.log(`options.indexOffset ${index_offset}`);
+      } else {
+        const attrs = await this.attrs;
+        if (attrs.hasOwnProperty("_index_offset")) {
+          index_offset = attrs["_index_offset"];
+          console.log(`attrs _index_offset ${index_offset}`);
+        } else {
+          const indexName = this.indexName || "_index";
+          const index_link = await dataobjects.find_link(indexName);
+          if (index_link) {
+            index_offset = index_link[1];
+            console.log(`links index_offset ${index_offset}`);
+          }
         }
       }
-      if (!this.index) {
-        const indexName = this.indexName || "_index";
-        const index_link = await dataobjects.find_link(indexName);
-        console.log(index_link);
-        if (index_link) {
-          this.index = await this._load_index(fh, index_link[1]);
+      if (index_offset) {
+        try {
+          const dataobject = new DataObjects(fh, index_offset);
+          await dataobject.ready;
+          const comp_index_data = await dataobject.get_data();
+          const inflated = ungzip_1(comp_index_data);
+          const json = new TextDecoder().decode(inflated);
+          this.index = JSON.parse(json);
+        } catch (e) {
+          console.error(`Error loading index by offset ${e}`);
         }
       }
     }
@@ -4600,21 +4617,6 @@ var File = class extends Group {
     } else {
       this._links = await dataobjects.get_links();
     }
-    this._dataobjects = dataobjects;
-    this._attrs = null;
-    this._keys = null;
-    this._fh = fh;
-    this.filename = filename || "";
-    this.mode = "r";
-    this.userblock_size = 0;
-  }
-  async _load_index(fh, index_offset) {
-    const dataobject = new DataObjects(fh, index_offset);
-    await dataobject.ready;
-    const comp_index_data = await dataobject.get_data();
-    const inflated = ungzip_1(comp_index_data);
-    const json = new TextDecoder().decode(inflated);
-    return JSON.parse(json);
   }
   _get_object_by_address(obj_addr) {
     if (this._dataobjects.offset == obj_addr) {
@@ -4684,8 +4686,6 @@ async function openH5File(options) {
 
     // Optional external index -- this is not common
     const index = await readExternalIndex(options);
-
-    // Optional file offset to index dataset -- optimization, not common.
     const indexOffset = options.indexOffset;
 
     // Create HDF5 file
@@ -4698,12 +4698,14 @@ async function openH5File(options) {
 async function readExternalIndex(options) {
 
     let indexReader;
-    if (options.indexURL) {
+    if(options.index) {
+        return options.index
+    } else if (options.indexURL) {
         indexReader = new RemoteFile({url: options.indexURL});
     } else if (options.indexPath) {
         indexReader = new NodeLocalFile({path: options.indexPath});
     } else if (options.indexFile) {
-        indexReader = new BrowserLocalFile({file: options.file});
+        indexReader = new BrowserLocalFile({file: options.indexFile});
     }
     if (indexReader) {
         const indexFileContents = await indexReader.read();

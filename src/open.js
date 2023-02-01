@@ -18,8 +18,6 @@ async function openH5File(options) {
 
     // Optional external index -- this is not common
     const index = await readExternalIndex(options)
-
-    // Optional file offset to index dataset -- optimization, not common.
     const indexOffset = options.indexOffset
 
     // Create HDF5 file
@@ -32,12 +30,14 @@ async function openH5File(options) {
 async function readExternalIndex(options) {
 
     let indexReader
-    if (options.indexURL) {
+    if(options.index) {
+        return options.index
+    } else if (options.indexURL) {
         indexReader = new RemoteFile({url: options.indexURL})
     } else if (options.indexPath) {
         indexReader = new NodeLocalFile({path: options.indexPath})
     } else if (options.indexFile) {
-        indexReader = new BrowserLocalFile({file: options.file})
+        indexReader = new BrowserLocalFile({file: options.indexFile})
     }
     if (indexReader) {
         const indexFileContents = await indexReader.read()

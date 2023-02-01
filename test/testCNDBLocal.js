@@ -5,32 +5,34 @@ import {testCNDB} from "./testCNDB"
 
 suite("test", function () {
 
-    test("cndb -- internal index -local", async function () {
-
+    test("cndb -- indexed", async function () {
         this.timeout(100000)
-
         const startTime = Date.now()
-
         // create HDF5 file object
         const localConfig = {path: require.resolve("./spleen_1chr1rep.indexed.cndb")}
-
         await testCNDB(localConfig)
+        console.log(`cndb -- indexed -- local finished in ${Date.now() - startTime} ms`)
+    })
 
-        console.log(`cndb -- internal index -- local finished in ${Date.now() - startTime} ms`)
+    test("cndb -- indexed with offset", async function () {
+        this.timeout(100000)
+        const startTime = Date.now()
+        // create HDF5 file object
+        const localConfig = {
+            path: require.resolve("./spleen_1chr1rep.indexed.cndb"),
+            indexOffset: 602012432
+        }
+        await testCNDB(localConfig)
+        console.log(`cndb -- indexed -- local finished in ${Date.now() - startTime} ms`)
     })
 
 
     test("cndb -- no index -- local", async function () {
-
         this.timeout(100000)
-
         const startTime = Date.now()
-
         // create HDF5 file object
         const localConfig = {path: require.resolve("./spleen_1chr1rep.cndb")}
-
         await testCNDB(localConfig)
-
         console.log(`cndb -- no index -- local finished in ${Date.now() - startTime} ms`)
     })
 
@@ -43,7 +45,4 @@ suite("test", function () {
         const hdfFile = await openH5File(config)
         unflattenIndex(hdfFile.index)
     })
-
-
-
 })
