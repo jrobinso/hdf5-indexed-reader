@@ -15,7 +15,7 @@ class RemoteFile {
 
     async read(position, length) {
 
-        console.log(`${position} - ${position + length} (${length})`);
+        //console.log(`${position} - ${position + length} (${length})`)
 
         const headers = this.config.headers || {};
 
@@ -196,6 +196,10 @@ class NodeLocalFile {
 
         //console.log(`${position} - ${position + length} (${length})`)
 
+        if(length === 0) {
+            return new ArrayBuffer(0)
+        }
+
         const fd = fs.openSync(this.path, 'r');
         position = position || 0;
         length = length || fs.statSync(this.path).size;
@@ -219,6 +223,10 @@ class BrowserLocalFile {
     }
 
     async read(position, length) {
+
+        if(length === 0) {
+            return new ArrayBuffer()
+        }
 
         const blob = (position != undefined && length) ?
             this.file.slice(position, position + length) :
@@ -4584,18 +4592,18 @@ var File = class extends Group {
       let index_offset;
       if (options && options.indexOffset) {
         index_offset = options.indexOffset;
-        console.log(`options.indexOffset ${index_offset}`);
+        //console.log(`options.indexOffset ${index_offset}`)
       } else {
         const attrs = await this.attrs;
         if (attrs.hasOwnProperty("_index_offset")) {
           index_offset = attrs["_index_offset"];
-          console.log(`attrs _index_offset ${index_offset}`);
+          //console.log(`attrs _index_offset ${index_offset}`)
         } else {
           const indexName = this.indexName || "_index";
           const index_link = await dataobjects.find_link(indexName);
           if (index_link) {
             index_offset = index_link[1];
-            console.log(`links index_offset ${index_offset}`);
+            //console.log(`links index_offset ${index_offset}`)
           }
         }
       }

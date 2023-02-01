@@ -22,6 +22,10 @@ class NodeLocalFile {
 
         //console.log(`${position} - ${position + length} (${length})`)
 
+        if(length === 0) {
+            return new ArrayBuffer(0)
+        }
+
         const fd = fs.openSync(this.path, 'r')
         position = position || 0
         length = length || fs.statSync(this.path).size
