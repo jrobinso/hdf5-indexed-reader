@@ -6104,18 +6104,15 @@ var File = class extends Group {
       let index_offset;
       if (options && options.indexOffset) {
         index_offset = options.indexOffset;
-        //console.log(`options.indexOffset ${index_offset}`)
       } else {
         const attrs = await this.attrs;
         if (attrs.hasOwnProperty("_index_offset")) {
           index_offset = attrs["_index_offset"];
-          //console.log(`attrs _index_offset ${index_offset}`)
         } else {
           const indexName = this.indexName || "_index";
           const index_link = await dataobjects.find_link(indexName);
           if (index_link) {
             index_offset = index_link[1];
-            //console.log(`links index_offset ${index_offset}`)
           }
         }
       }
@@ -6160,7 +6157,7 @@ var Dataset = class extends Array {
   get value() {
     var data = this._dataobjects.get_data();
     if (this._astype == null) {
-      return data;
+      return this.getValue(data);
     }
     return data.astype(this._astype);
   }
@@ -6176,6 +6173,19 @@ var Dataset = class extends Array {
   get fillvalue() {
     return this._dataobjects.get_fillvalue();
   }
+  async to_array() {
+    const value = await this.value;
+    const shape = await this.shape;
+    return create_nested_array(value, shape);
+  }
+  async getValue(data) {
+    const dtype = await this.dtype;
+    if (dtype.startsWith("S")) {
+      return (await data).map((s) => s.substr(0, s.indexOf("\0")));
+    } else {
+      return data;
+    }
+  }
 };
 function posix_dirname(p) {
   let sep = "/";
@@ -6190,6 +6200,25 @@ function posix_dirname(p) {
 }
 function normpath(path) {
   return path.replace(/\/(\/)+/g, "/");
+}
+function create_nested_array(value, shape) {
+  const total_length = value.length;
+  const dims_product = shape.reduce((previous, current) => previous * current, 1);
+  if (total_length !== dims_product) {
+    console.warn(`shape product: ${dims_product} does not match length of flattened array: ${total_length}`);
+  }
+  let output = value;
+  const subdims = shape.slice(1).reverse();
+  for (let dim of subdims) {
+    const new_output = [];
+    const { length } = output;
+    let cursor = 0;
+    while (cursor < length) {
+      new_output.push(output.slice(cursor, cursor += dim));
+    }
+    output = new_output;
+  }
+  return output;
 }
 export {
   Dataset,
