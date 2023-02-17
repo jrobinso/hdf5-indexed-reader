@@ -1,18 +1,23 @@
 import RemoteFile from "./io/remoteFile.js"
 import BufferedFile from "./io/bufferedFile.js"
 import BufferedFile2 from "./io/bufferedFile2.js"
+import BufferedFile3 from "./io/bufferedFile3.js"
 import NodeLocalFile from "./io/nodeLocalFile.js"
 import BrowserLocalFile from "./io/browserLocalFile.js"
-import {File} from "./jsfive/index.mjs"
+import {File} from "../node_modules/jsfive/dist/esm/index.mjs"
 
 async function openH5File(options) {
 
 
     const isRemote = options.url !== undefined
     let fileReader = getReaderFor(options)
-    const bufferSize = options.bufferSize || 4000
+
+    // Set default options appropriate for spacewalk
+    const fetchSize = options.fetchSize || 2000
+    const maxSize = options.maxSize || 200000
+
     if (isRemote) {
-        fileReader = new BufferedFile2({file: fileReader, size: bufferSize})
+        fileReader = new BufferedFile3({file: fileReader, fetchSize, maxSize})
     }
     const asyncBuffer = new AsyncBuffer(fileReader)
 

@@ -84,6 +84,19 @@ async function testCNDB(config) {
 
     console.log(`Second dataset loded in ${Date.now() - time2} ms`)
 
+    // Third dataset
+    const time3 = Date.now()
+    const sp3 = await spatialPosition.get('1150')
+    const values3 = await sp3.value
+    console.log(`Third dataset loded in ${Date.now() - time3} ms`)
+
+    // Fourth dataset
+    const time4 = Date.now()
+    const sp4 = await spatialPosition.get('1151')
+    const values4 = await sp4.value
+    console.log(`Fourth dataset loded in ${Date.now() - time4} ms`)
+
+
 }
 
 export {testCNDB}

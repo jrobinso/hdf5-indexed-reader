@@ -9,12 +9,12 @@ suite("test", function () {
         const startTime = Date.now()
 
         const remoteConfig = {
-            url: "https://dl.dropboxusercontent.com/s/53fbs3le4a65noq/spleen_1chr1rep.indexed.cndb?dl=0",
+            url: "https://dl.dropboxusercontent.com/s/53fbs3le4a65noq/spleen_1chr1rep.indexed.cndb?dl=0"
         }
 
         await testCNDB(remoteConfig)
 
-        console.log(`cndb - indexed -- remote finished in ${Date.now() - startTime} ms`)
+        //console.log(`cndb - indexed -- remote finished in ${Date.now() - startTime} ms`)
 
     })
 

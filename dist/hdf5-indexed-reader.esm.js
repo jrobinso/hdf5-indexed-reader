@@ -85,83 +85,139 @@ function addParameter(url, name, value) {
     return url + paramSeparator + name + "=" + value
 }
 
-class BufferedFile2 {
+class BufferedFile3 {
 
     constructor(args) {
         this.file = args.file;
-        this.size = args.size || 16000;
+        this.fetchSize = args.fetchSize || 16000;
+        this.maxSize = args.maxSize || 1000000;
         this.buffers = [];
-        this.maxBuffersLength = 1;
     }
 
     async read(position, length) {
 
-        if (length > this.size) {
-            // Request larger than max buffer size,  pass through to underlying file
-            //console.log("0")
-            return this.file.read(position, length)
+
+        let overlappingBuffers = this.buffers.filter( b => b.overlaps(position, position + length));
+
+        // See if any buffers completely contain request, if so we're done
+        for(let buffer of overlappingBuffers) {
+            if(buffer.contains(position, position + length)) {
+              return buffer.slice(position, position + length)
+            }
         }
 
-        let buffer = this.findBuffer(position, length);
 
-        if (buffer) {
-            const start = position;
-            const bufferStart = buffer.start;
-            const sliceStart = start - bufferStart;
-            const sliceEnd = sliceStart + length;
-            return buffer.slice(sliceStart, sliceEnd)
+        if(overlappingBuffers.length === 0) {
 
-        } else {
             // No overlap with any existing buffer
+            let size = Math.max(length, this.fetchSize);
 
-            const bufferStart = Math.max(0, position - 10);
-            const bufferData = await this.file.read(bufferStart, this.size);
-            const bufferLength = bufferData.byteLength;
-            buffer = new Buffer$1(bufferStart, bufferLength, bufferData);
+            // Find index of first buffer to the right, if any, to potentially limit size
+            this.buffers.sort((a, b) => a.start - b.start);
+            const idx = binarySearch(this.buffers, (b) => b.start > position, 0);
+            if(idx < this.buffers.length) {
+                size = Math.min(size, this.buffers[idx].start - position);
+            }
+
+            const bufferStart = position;
+            const bufferData = await this.file.read(bufferStart, size);
+            const buffer = new Buffer$1(bufferStart, bufferData);
             this.addBuffer(buffer);
 
-            const sliceStart = position - bufferStart;
-            const sliceEnd = sliceStart + length;
-            return buffer.slice(sliceStart, sliceEnd)
+            return buffer.slice(position, position + length)
+        } else {
+
+            // console.log("Cache hit")
+            // Some overlap.   Fill gaps
+            overlappingBuffers.sort((a, b) => a.start - b.start);
+            const allBuffers = [];
+            let currentEnd = position;
+            for (let ob of overlappingBuffers) {
+                if (currentEnd < ob.start) {
+                    const bufferStart = currentEnd;
+                    const bufferSize = ob.start - currentEnd;
+                    const bufferData = await this.file.read(bufferStart, bufferSize);
+                    const buffer = new Buffer$1(bufferStart, bufferData);
+                    allBuffers.push(buffer);
+                }
+                allBuffers.push(ob);
+                currentEnd = ob.end;
+            }
+
+            // Check end
+            const requestedEnd = position + length;
+            if (requestedEnd > currentEnd) {
+                const bufferStart = currentEnd;
+                const bufferSize = requestedEnd - bufferStart;
+                const bufferData = await this.file.read(bufferStart, bufferSize);
+                const buffer = new Buffer$1(bufferStart, bufferData);
+                allBuffers.push(buffer);
+            }
+
+            const newStart = allBuffers[0].start;
+            const newArrayBuffer = concatArrayBuffers(allBuffers.map(b => b.buffer));
+            const newBuffer = new Buffer$1(newStart, newArrayBuffer);
+
+            // Replace the overlapping buffers with the new composite one
+            const tmp = new Set(overlappingBuffers);
+            this.buffers = this.buffers.filter(b => !tmp.has(b));
+            this.addBuffer(newBuffer);
+
+            return newBuffer.slice(position, position + length)
         }
 
     }
 
     addBuffer(buffer) {
-        if (this.buffers.length > this.maxBuffersLength) {
-            this.buffers = this.buffers.slice(1);
+
+        const size = this.buffers.reduce((a,b) => a + b.size, 0) + buffer.size;
+        if(size > this.maxSize) {
+            // console.log(`max buffer size exceeded`)
+            const overage = size - this.maxSize;
+            this.buffers.sort((a,b) => a.creationTime - b.creationTime);
+            let sum = 0;
+            let i;
+            for(i=0; i<this.buffers.length; i++) {
+                sum += this.buffers[i].size;
+                if(sum > overage) {
+                    break
+                }
+            }
+            // console.log('removing buffers')
+            // for(let j=0; j<i; j++) console.log(`  ${this.buffers[j].toString()}`)
+            this.buffers = (i < this.buffers.length - 1)  ? this.buffers.slice(i)  : [];
         }
-        this.buffers.push(buffer);
+
+        if(buffer.size <= this.maxSize) {
+            this.buffers.push(buffer);
+        }
     }
 
-    findBuffer(start, length) {
-        for (let buffer of this.buffers) {
-            if (buffer.contains(start, start + length)) {
-                return buffer
-            }
-        }
-        // for (let buffer of this.buffers) {
-        //     if (buffer.overlaps(start, start + length)) {
-        //         return buffer
-        //     }
-        // }
-        return undefined
-    }
 
 
 }
 
 let Buffer$1 = class Buffer {
 
-    constructor(bufferStart, bufferLength, buffer) {
+    constructor(bufferStart, buffer) {
+        this.creationTime = Date.now();
         this.start = bufferStart;
-        this.length = bufferLength;
-        this.end = bufferStart + bufferLength;
         this.buffer = buffer;
     }
 
     slice(start, end) {
-        return this.buffer.slice(start, end)
+        if(start < this.start || end - start > this.buffer.byteLength) {
+            throw Error("buffer bounds error")
+        }
+        return this.buffer.slice(start - this.start, end - this.start)
+    }
+
+    get end() {
+        return this.start + this.buffer.byteLength
+    }
+
+    get size() {
+        return this.buffer.byteLength
     }
 
     contains(start, end) {
@@ -172,7 +228,49 @@ let Buffer$1 = class Buffer {
         return (start > this.start && start < this.end) || (end > this.start && end < this.end)
     }
 
+    toString() {
+        return `Buffer ${this.creationTime}   ${this.start} - ${this.end}`
+    }
+
 };
+
+/**
+ * concatenates 2 array buffers.
+ * Credit: https://gist.github.com/72lions/4528834
+ *
+ * @private
+ * @param {ArrayBuffers} buffer1 The first buffer.
+ * @param {ArrayBuffers} buffer2 The second buffer.
+ * @return {ArrayBuffers} The new ArrayBuffer created out of the two.
+ */
+function concatArrayBuffers(buffers) {
+    const size = buffers.reduce((a,b) => a + b.byteLength, 0);
+    const tmp = new Uint8Array(size);
+    let offset = 0;
+    for(let b of buffers) {
+        tmp.set(new Uint8Array(b), offset);
+        offset += b.byteLength;
+    }
+    return tmp.buffer
+}
+
+/**
+ * Return 0 <= i <= array.length such that !pred(array[i - 1]) && pred(array[i]).
+ *
+ * returns an index 0 ≤ i ≤ array.length such that the given predicate is false for array[i - 1] and true for array[i]* *
+ */
+function binarySearch(array, pred, min) {
+    let lo = min - 1, hi = array.length;
+    while (1 + lo < hi) {
+        const mi = lo + ((hi - lo) >> 1);
+        if (pred(array[mi])) {
+            hi = mi;
+        } else {
+            lo = mi;
+        }
+    }
+    return hi
+}
 
 let fs;
 if (isNode) {
@@ -4259,6 +4357,9 @@ var DataObjects = class {
   }
   async _get_chunked_data(offset) {
     await this._get_chunk_params();
+    if (this._chunk_address == UNDEFINED_ADDRESS2) {
+      return [];
+    }
     var chunk_btree = new BTreeV1RawDataChunks(this.fh, this._chunk_address, this._chunk_dims);
     await chunk_btree.ready;
     const dtype = await this.dtype;
@@ -4715,9 +4816,13 @@ async function openH5File(options) {
 
     const isRemote = options.url !== undefined;
     let fileReader = getReaderFor(options);
-    const bufferSize = options.bufferSize || 4000;
+
+    // Set default options appropriate for spacewalk
+    const fetchSize = options.fetchSize || 2000;
+    const maxSize = options.maxSize || 200000;
+
     if (isRemote) {
-        fileReader = new BufferedFile2({file: fileReader, size: bufferSize});
+        fileReader = new BufferedFile3({file: fileReader, fetchSize, maxSize});
     }
     const asyncBuffer = new AsyncBuffer(fileReader);
 
