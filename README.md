@@ -2,8 +2,8 @@
 
 ## Summary
 
-Module built on the jsfive project (https://github.com/usnistgov/jsfive) for efficient querying of HDF5 files over the
-web.   Runs in node and the browser (for browser build ```npm run build``` and import dist/hdf5-indexed-reader.esm.js).
+Module for efficient querying of HDF5 files over the web.   Runs in node and the browser (for browser build ```npm run build``` 
+and import dist/hdf5-indexed-reader.esm.js).
 
 hdf5-indexed-reader works in conjunction with hdf5 files indexed with the companion python project  
 [h5-indexer](https://github.com/jrobinso/h5-indexer) to load groups and datasets on demand as needed. The project's focus 
@@ -13,20 +13,15 @@ files with fast disks are minimal, but for asynchronous  reading over the web th
 quickly freeze an application.  This project addresses this  issue by supporting a pre-built index for the containers 
 (groups and datasets) file offsets.  
 
-This project can be used with hdf5 files without an index if the number of containers (groups and datasets) is relatively
-small.
-
+The module is built on a fork of [jsfive](https://github.com/usnistgov/jsfive) modified to recognize and use the 
+embedded index, if present.  The fork is available at https://github.com/jrobinso/hdf5-indexed-reader
 
 ## Limitations
 
-* As this project is based on [jsfive](https://github.com/usnistgov/jsfive),  some limitations of that tool apply here,
-namely not all datatypes are supported.
+* As this project is based on `jsfive`,  some limitations of that tool apply here, namely not all datatypes are supported.
 
 * The hdf5 file is indexed at the granulatiry of containers, i.e. groups and datasets, and these are the smallest addressable
-objects.  Although not a problem for node,  hdf5 files with very large datasets will likely not be loadable in the browser.
-The focus of the project is on schemas with many small datasets, as opposed to a few (or many) large datasets. Depending
-on your internet speed, computer memory, and patience, the threshold between small and large can range from one to
-a few hundred MB.
+objects.  HDF5 files with very large datasets will likely not be loadable in the browser.
 
   
 ## Build
