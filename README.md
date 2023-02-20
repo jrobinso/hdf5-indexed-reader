@@ -2,8 +2,8 @@
 
 ## Summary
 
-hdf-indexed-reader is a module for efficient querying of HDF5 files over the web  It works in 
-conjunction with the companion project [h5-indexer](https://github.com/jrobinso/h5-indexer), which annotates
+hdf-indexed-reader is a module for efficient querying of HDF5 files over the web.  It works in 
+conjunction with the companion project [hdf5-indexer](https://github.com/jrobinso/hdf5-indexer), which annotates
 HDF5 files with an index mapping object path names to file offsets.  The index is used to enable 
 direct loading of individual datasets without the need to load the entire file into memory.
 
