@@ -2,26 +2,40 @@
 
 ## Summary
 
-Module for efficient querying of HDF5 files over the web.   Runs in node and the browser (for browser build ```npm run build``` 
-and import dist/hdf5-indexed-reader.esm.js).
+hdf-indexed-reader is a module for efficient querying of HDF5 files over the web  It works in 
+conjunction with the companion project [h5-indexer](https://github.com/jrobinso/h5-indexer), which annotates
+HDF5 files with an index mapping object path names to file offsets.  The index is used to enable 
+direct loading of individual datasets without the need to load the entire file into memory.
 
-hdf5-indexed-reader works in conjunction with hdf5 files indexed with the companion python project  
-[h5-indexer](https://github.com/jrobinso/h5-indexer) to load groups and datasets on demand as needed. The project's focus 
-is on file schemaa with potentially many (10s of thousands or more) datasets.  Loading such files can result in 
-thousands of seeks over disparate regions of the file to build the internal b-tree indeces. The cost of such seeks for local 
-files with fast disks are minimal, but for asynchronous  reading over the web the explosion of http requests can 
-quickly freeze an application.  This project addresses this  issue by supporting a pre-built index for the containers 
-(groups and datasets) file offsets.  
+This module will work with non-indexed HDF5 files, but much of the benefit is negated.
 
-The module is built on a fork of [jsfive](https://github.com/usnistgov/jsfive) modified to recognize and use the 
-embedded index, if present.  The fork is available at https://github.com/jrobinso/hdf5-indexed-reader
+The module is built on a fork of [jsfive](https://github.com/usnistgov/jsfive)
+modified to recognize and use the  embedded index.  The fork is available at
+https://github.com/jrobinso/hdf5-indexed-reader.  
+
+## Motivation
+
+The driving use case for this project involves extracting individual datasets for visualization in a web browser
+from large HDF5 files (~200 GB) containing 10s of thousands of individual datasets.  Loading such files over
+the web with available solutions present 2 problems
+
+* The file is too large to load into browser memory in its entirety
+
+* Finding the file offset for the object desired involves walking a linked list of nodes of containing and sibling objects
+  These nodes can be located anywhere in the file, resulting in an explosion of http range requests which can quickly
+  freeze the application.
+
+This project addresses these issues by supporting a pre-built index for mapping object (groups and datasets)
+paths to file offsets, allowing the use of range requests to directly load desired objects.
+
 
 ## Limitations
 
 * As this project is based on `jsfive`,  some limitations of that tool apply here, namely not all datatypes are supported.
 
-* The hdf5 file is indexed at the granulatiry of containers, i.e. groups and datasets, and these are the smallest addressable
-objects.  HDF5 files with very large datasets will likely not be loadable in the browser.
+* This reader is designed for large HDF5 files containing many datasets.  Small files will likely not  
+benefit from indexing and incremental loading.  Additionally, the benefit of indexing is reduced if the number 
+of datasets is small. 
 
   
 ## Build
@@ -31,7 +45,32 @@ npm run install
 npm run build
 ```
 
-## Browser usage
+## Usage
+
+The module exports a single function, ```openH5File( {options} )```.  The HDF5 file is specified with one of the following
+properties
+
+* url - url to the hdf5 file
+* path - local file path, `node` only
+* file - browser `File` object
+
+URL fetches are cached to avoid separate individual requests for small amounts of data.  The following optional properties controls
+the cache
+
+* fetchSize - minimum size in bytes for each http request.  Defaults to 2000  (2 kb)
+* maxSize - the maximum number of bytes to cache.  Default value is 200000  (200 kb)
+
+In cases where it is not possible to modify the HDF5 file `hdf5-indexer` can create an external index as a json file.  
+This file can be used with one of the following properties
+
+* indexURL - url to index json file
+* indexPath - local file path, `node` only
+* indexFile - browser `File` object
+
+
+## Example
+
+Load a `Dataset` from a remote HDF5 file and fetch its shape, data type, and values.
 
 ```js
 import {openH5File} from "dist/esm/hdf5-indexed-reader.esm.js"
@@ -40,22 +79,10 @@ const hdfFile = await openH5File({
     url: "https://www.dropbox.com/s/53fbs3le4a65noq/spleen_1chr1rep.indexed.cndb?dl=0",
 })
 
-const rootGroup = await hdfFile.get('/')
-
-```
-
-
-## Node usage
-
-```js
-
-import {openH5File} from "dist/esm/hdf5-indexed-reader.esm.js"
-
-const hdfFile = await openH5File({
-    path: require.resolve("/spleen_1chr1rep.indexed.cndb")
-})
-
-const rootGroup = await hdfFile.get('/')
+const spatialPostionDataset = await hdfFile.get('/replica10_chr1/spatial_position/1149')
+const shape = await spatialPostionDataset.shape
+const dtype = await spatialPostionDataset.dtype
+const values  = await spatialPostionDataset.value
 
 ```
 

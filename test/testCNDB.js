@@ -64,7 +64,7 @@ async function testCNDB(config) {
     // Second dataset
     console.log("Start second dataset")
     const time2 = Date.now()
-    const sp2 = await spatialPosition.get('1149')
+    const sp2 = await hdfFile.get('/replica10_chr1/spatial_position/1149')
 
     console.log("Get shape")
     const s2 = await sp2.shape
