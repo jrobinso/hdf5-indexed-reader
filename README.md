@@ -52,7 +52,7 @@ properties
 
 * url - url to the hdf5 file
 * path - local file path, `node` only
-* file - browser `File` object
+* file - browser `File` or other `Blob` like object
 
 URL fetches are cached to avoid separate individual requests for small amounts of data.  The following optional properties controls
 the cache
