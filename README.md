@@ -10,7 +10,7 @@ direct loading of individual datasets without the need to load the entire file i
 This module will work with non-indexed HDF5 files, but much of the benefit is negated.
 
 The module is built on a fork of [jsfive](https://github.com/usnistgov/jsfive)
-modified to recognize and use the  embedded index.  The fork is available at
+modified to (1) use range requests to fetch slices of the remote file as needed, and (2) recognize and use the  embedded index if present.  The fork is available at
 https://github.com/jrobinso/hdf5-indexed-reader.  
 
 ## Motivation
