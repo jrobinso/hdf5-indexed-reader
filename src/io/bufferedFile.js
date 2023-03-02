@@ -2,95 +2,147 @@ class BufferedFile {
 
     constructor(args) {
         this.file = args.file
-        this.size = args.size || 16000
-        this.position = 0
-        this.bufferStart = 0
-        this.bufferLength = 0
-        this.buffer = undefined
+        this.fetchSize = args.fetchSize || 16000
+        this.maxSize = args.maxSize || 1000000
+        this.buffers = []
     }
-
 
     async read(position, length) {
 
-        const start = position
-        const end = position + length
-        const bufferStart = this.bufferStart
-        const bufferEnd = this.bufferStart + this.bufferLength
 
+        let overlappingBuffers = this.buffers.filter( b => b.overlaps(position, position + length))
 
-        if (length > this.size) {
-            // Request larger than max buffer size,  pass through to underlying file
-            //console.log("0")
-            this.buffer = undefined
-            this.bufferStart = 0
-            this.bufferLength = 0
-            return this.file.read(position, length)
+        // See if any buffers completely contain request, if so we're done
+        for(let buffer of overlappingBuffers) {
+            if(buffer.contains(position, position + length)) {
+              return buffer.slice(position, position + length)
+            }
         }
 
-        if (start >= bufferStart && end <= bufferEnd) {
-            // Request within buffer bounds
-            //console.log("1")
-            const sliceStart = start - bufferStart
-            const sliceEnd = sliceStart + length
-            return this.buffer.slice(sliceStart, sliceEnd)
-        }
 
-        else if (start < bufferStart && end > bufferStart) {
-            // Overlap left, here for completness but this is an unexpected case in straw.  We don't adjust the buffer.
-            //console.log("2")
-            const l1 = bufferStart - start
-            const a1 = await this.file.read(position, l1)
-            const l2 = length - l1
-            if (l2 > 0) {
-                //this.buffer = await this.file.read(bufferStart, this.size)
-                const a2 = this.buffer.slice(0, l2)
-                return concatBuffers(a1, a2)
-            } else {
-                return a1
+        if(overlappingBuffers.length === 0) {
+
+            // No overlap with any existing buffer
+            let size = Math.max(length, this.fetchSize)
+
+            // Find index of first buffer to the right, if any, to potentially limit size
+            this.buffers.sort((a, b) => a.start - b.start)
+            const idx = binarySearch(this.buffers, (b) => b.start > position, 0)
+            if(idx < this.buffers.length) {
+                size = Math.min(size, this.buffers[idx].start - position)
             }
 
-        }
+            const bufferStart = position
+            const bufferData = await this.file.read(bufferStart, size)
+            const buffer = new Buffer(bufferStart, bufferData)
+            this.addBuffer(buffer)
 
-        else if (start < bufferEnd && end > bufferEnd) {
-            // Overlap right
-            // console.log("3")
-            const l1 = bufferEnd - start
-            const sliceStart = this.bufferLength - l1
-            const a1 = this.buffer.slice(sliceStart, this.bufferLength)
+            return buffer.slice(position, position + length)
+        } else {
 
-            const l2 = length - l1
-            if (l2 > 0) {
-                try {
-                    this.buffer = await this.file.read(bufferEnd, this.size)
-                    this.bufferStart = bufferEnd
-                    this.bufferLength = this.buffer.byteLength
-                    const a2 = this.buffer.slice(0, l2)
-                    return concatBuffers(a1, a2)
-                } catch (e) {
-                    // A "unsatisfiable range" error is expected here if we overlap past the end of file
-                    if (e.code && e.code === 416) {
-                        return a1
-                    }
-                    else {
-                        throw e
-                    }
+            // console.log("Cache hit")
+            // Some overlap.   Fill gaps
+            overlappingBuffers.sort((a, b) => a.start - b.start)
+            const allBuffers = []
+            let currentEnd = position
+            for (let ob of overlappingBuffers) {
+                if (currentEnd < ob.start) {
+                    const bufferStart = currentEnd
+                    const bufferSize = ob.start - currentEnd
+                    const bufferData = await this.file.read(bufferStart, bufferSize)
+                    const buffer = new Buffer(bufferStart, bufferData)
+                    allBuffers.push(buffer)
                 }
-
-            } else {
-                return a1
+                allBuffers.push(ob)
+                currentEnd = ob.end
             }
 
+            // Check end
+            const requestedEnd = position + length
+            if (requestedEnd > currentEnd) {
+                const bufferStart = currentEnd
+                const bufferSize = requestedEnd - bufferStart
+                const bufferData = await this.file.read(bufferStart, bufferSize)
+                const buffer = new Buffer(bufferStart, bufferData)
+                allBuffers.push(buffer)
+            }
+
+            const newStart = allBuffers[0].start
+            const newArrayBuffer = concatArrayBuffers(allBuffers.map(b => b.buffer))
+            const newBuffer = new Buffer(newStart, newArrayBuffer)
+
+            // Replace the overlapping buffers with the new composite one
+            const tmp = new Set(overlappingBuffers)
+            this.buffers = this.buffers.filter(b => !tmp.has(b))
+            this.addBuffer(newBuffer)
+
+            return newBuffer.slice(position, position + length)
         }
 
-        else {
-            // No overlap with buffer
-            // console.log("4")
-            this.buffer = await this.file.read(position, this.size)
-            this.bufferStart = position
-            this.bufferLength = this.buffer.byteLength
-            return this.buffer.slice(0, length)
+    }
+
+    addBuffer(buffer) {
+
+        const size = this.buffers.reduce((a,b) => a + b.size, 0) + buffer.size
+        if(size > this.maxSize) {
+            // console.log(`max buffer size exceeded`)
+            const overage = size - this.maxSize
+            this.buffers.sort((a,b) => a.creationTime - b.creationTime)
+            let sum = 0
+            let i
+            for(i=0; i<this.buffers.length; i++) {
+                sum += this.buffers[i].size
+                if(sum > overage) {
+                    break
+                }
+            }
+            // console.log('removing buffers')
+            // for(let j=0; j<i; j++) console.log(`  ${this.buffers[j].toString()}`)
+            this.buffers = (i < this.buffers.length - 1)  ? this.buffers.slice(i)  : []
         }
 
+        if(buffer.size <= this.maxSize) {
+            this.buffers.push(buffer)
+        }
+    }
+
+
+
+}
+
+class Buffer {
+
+    constructor(bufferStart, buffer) {
+        this.creationTime = Date.now()
+        this.start = bufferStart
+        this.buffer = buffer
+    }
+
+    slice(start, end) {
+        if(start < this.start || end - start > this.buffer.byteLength) {
+            throw Error("buffer bounds error")
+        }
+        return this.buffer.slice(start - this.start, end - this.start)
+    }
+
+    get end() {
+        return this.start + this.buffer.byteLength
+    }
+
+    get size() {
+        return this.buffer.byteLength
+    }
+
+    contains(start, end) {
+        return start >= this.start && end <= this.end
+    }
+
+    overlaps(start, end) {
+        return (start > this.start && start < this.end) || (end > this.start && end < this.end)
+    }
+
+    toString() {
+        return `Buffer ${this.creationTime}   ${this.start} - ${this.end}`
     }
 
 }
@@ -104,12 +156,35 @@ class BufferedFile {
  * @param {ArrayBuffers} buffer2 The second buffer.
  * @return {ArrayBuffers} The new ArrayBuffer created out of the two.
  */
-var concatBuffers = function (buffer1, buffer2) {
-    var tmp = new Uint8Array(buffer1.byteLength + buffer2.byteLength);
-    tmp.set(new Uint8Array(buffer1), 0);
-    tmp.set(new Uint8Array(buffer2), buffer1.byteLength);
-    return tmp.buffer;
-};
+function concatArrayBuffers(buffers) {
+    const size = buffers.reduce((a,b) => a + b.byteLength, 0)
+    const tmp = new Uint8Array(size)
+    let offset = 0
+    for(let b of buffers) {
+        tmp.set(new Uint8Array(b), offset)
+        offset += b.byteLength
+    }
+    return tmp.buffer
+}
+
+/**
+ * Return 0 <= i <= array.length such that !pred(array[i - 1]) && pred(array[i]).
+ *
+ * returns an index 0 ≤ i ≤ array.length such that the given predicate is false for array[i - 1] and true for array[i]* *
+ */
+function binarySearch(array, pred, min) {
+    let lo = min - 1, hi = array.length
+    while (1 + lo < hi) {
+        const mi = lo + ((hi - lo) >> 1)
+        if (pred(array[mi])) {
+            hi = mi
+        } else {
+            lo = mi
+        }
+    }
+    return hi
+}
 
 
-export default BufferedFile;
+
+export default BufferedFile

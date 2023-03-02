@@ -1,23 +1,20 @@
 import RemoteFile from "./io/remoteFile.js"
 import BufferedFile from "./io/bufferedFile.js"
-import BufferedFile2 from "./io/bufferedFile2.js"
-import BufferedFile3 from "./io/bufferedFile3.js"
-import NodeLocalFile from "./io/nodeLocalFile.js"
-import BrowserLocalFile from "./io/browserLocalFile.js"
+import BlobFile from "./io/blobFile.js"
 import {File} from "../node_modules/jsfive/dist/esm/index.mjs"
 
 async function openH5File(options) {
 
 
     const isRemote = options.url !== undefined
-    let fileReader = getReaderFor(options)
+    let fileReader = options.reader ? options.reader : getReaderFor(options)
 
     // Set default options appropriate for spacewalk
     const fetchSize = options.fetchSize || 2000
     const maxSize = options.maxSize || 200000
 
     if (isRemote) {
-        fileReader = new BufferedFile3({file: fileReader, fetchSize, maxSize})
+        fileReader = new BufferedFile({file: fileReader, fetchSize, maxSize})
     }
     const asyncBuffer = new AsyncBuffer(fileReader)
 
@@ -35,14 +32,17 @@ async function openH5File(options) {
 async function readExternalIndex(options) {
 
     let indexReader
-    if(options.index) {
+    if(options.indexReader) {
+        indexReader = options.indexReader
+    }
+    else if(options.index) {
         return options.index
     } else if (options.indexURL) {
         indexReader = new RemoteFile({url: options.indexURL})
     } else if (options.indexPath) {
         indexReader = new NodeLocalFile({path: options.indexPath})
     } else if (options.indexFile) {
-        indexReader = new BrowserLocalFile({file: options.indexFile})
+        indexReader = new BlobFile({file: options.indexFile})
     }
     if (indexReader) {
         const indexFileContents = await indexReader.read()
@@ -60,7 +60,7 @@ function getReaderFor(options) {
     } else if (options.path) { // A file path
         return new NodeLocalFile(options)
     } else if (options.file) { // A Browser file blob
-        return new BrowserLocalFile(options.file)
+        return new BlobFile(options.file)
     } else {
         throw Error("One of 'url', 'path (node only)', or 'file (browser only)' must be specified")
     }

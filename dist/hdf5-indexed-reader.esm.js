@@ -85,7 +85,7 @@ function addParameter(url, name, value) {
     return url + paramSeparator + name + "=" + value
 }
 
-class BufferedFile3 {
+class BufferedFile {
 
     constructor(args) {
         this.file = args.file;
@@ -121,7 +121,7 @@ class BufferedFile3 {
 
             const bufferStart = position;
             const bufferData = await this.file.read(bufferStart, size);
-            const buffer = new Buffer$1(bufferStart, bufferData);
+            const buffer = new Buffer(bufferStart, bufferData);
             this.addBuffer(buffer);
 
             return buffer.slice(position, position + length)
@@ -137,7 +137,7 @@ class BufferedFile3 {
                     const bufferStart = currentEnd;
                     const bufferSize = ob.start - currentEnd;
                     const bufferData = await this.file.read(bufferStart, bufferSize);
-                    const buffer = new Buffer$1(bufferStart, bufferData);
+                    const buffer = new Buffer(bufferStart, bufferData);
                     allBuffers.push(buffer);
                 }
                 allBuffers.push(ob);
@@ -150,13 +150,13 @@ class BufferedFile3 {
                 const bufferStart = currentEnd;
                 const bufferSize = requestedEnd - bufferStart;
                 const bufferData = await this.file.read(bufferStart, bufferSize);
-                const buffer = new Buffer$1(bufferStart, bufferData);
+                const buffer = new Buffer(bufferStart, bufferData);
                 allBuffers.push(buffer);
             }
 
             const newStart = allBuffers[0].start;
             const newArrayBuffer = concatArrayBuffers(allBuffers.map(b => b.buffer));
-            const newBuffer = new Buffer$1(newStart, newArrayBuffer);
+            const newBuffer = new Buffer(newStart, newArrayBuffer);
 
             // Replace the overlapping buffers with the new composite one
             const tmp = new Set(overlappingBuffers);
@@ -197,7 +197,7 @@ class BufferedFile3 {
 
 }
 
-let Buffer$1 = class Buffer {
+class Buffer {
 
     constructor(bufferStart, buffer) {
         this.creationTime = Date.now();
@@ -232,7 +232,7 @@ let Buffer$1 = class Buffer {
         return `Buffer ${this.creationTime}   ${this.start} - ${this.end}`
     }
 
-};
+}
 
 /**
  * concatenates 2 array buffers.
@@ -272,49 +272,7 @@ function binarySearch(array, pred, min) {
     return hi
 }
 
-let fs;
-if (isNode) {
-    fs = require('fs');
-} else {
-    fs = {
-        openSync: () => {throw Error("NodeLocalFile only supported in node.js environments")},
-        readSync: () => {throw Error("NodeLocalFile only supported in node.js environments")},
-        statSync: () => {throw Error("NodeLocalFile only supported in node.js environments")},
-    };
-}
-
-class NodeLocalFile {
-
-    constructor(args) {
-        this.path = args.path;
-    }
-
-
-    async read(position, length) {
-
-        //console.log(`${position} - ${position + length} (${length})`)
-
-        if(length === 0) {
-            return new ArrayBuffer(0)
-        }
-
-        const fd = fs.openSync(this.path, 'r');
-        position = position || 0;
-        length = length || fs.statSync(this.path).size;
-        const buffer = Buffer.alloc(length);
-        fs.readSync(fd, buffer, 0, length, position);
-
-        fs.close(fd, function (error) {
-            // TODO Do something with error
-        });
-
-        //TODO -- compare result.bytesRead with length
-        const arrayBuffer = buffer.buffer;
-        return arrayBuffer
-    }
-}
-
-class BrowserLocalFile {
+class BlobFile {
 
     constructor(blob) {
         this.file = blob;
@@ -4815,14 +4773,14 @@ async function openH5File(options) {
 
 
     const isRemote = options.url !== undefined;
-    let fileReader = getReaderFor(options);
+    let fileReader = options.reader ? options.reader : getReaderFor(options);
 
     // Set default options appropriate for spacewalk
     const fetchSize = options.fetchSize || 2000;
     const maxSize = options.maxSize || 200000;
 
     if (isRemote) {
-        fileReader = new BufferedFile3({file: fileReader, fetchSize, maxSize});
+        fileReader = new BufferedFile({file: fileReader, fetchSize, maxSize});
     }
     const asyncBuffer = new AsyncBuffer(fileReader);
 
@@ -4840,14 +4798,17 @@ async function openH5File(options) {
 async function readExternalIndex(options) {
 
     let indexReader;
-    if(options.index) {
+    if(options.indexReader) {
+        indexReader = options.indexReader;
+    }
+    else if(options.index) {
         return options.index
     } else if (options.indexURL) {
         indexReader = new RemoteFile({url: options.indexURL});
     } else if (options.indexPath) {
         indexReader = new NodeLocalFile({path: options.indexPath});
     } else if (options.indexFile) {
-        indexReader = new BrowserLocalFile({file: options.indexFile});
+        indexReader = new BlobFile({file: options.indexFile});
     }
     if (indexReader) {
         const indexFileContents = await indexReader.read();
@@ -4865,7 +4826,7 @@ function getReaderFor(options) {
     } else if (options.path) { // A file path
         return new NodeLocalFile(options)
     } else if (options.file) { // A Browser file blob
-        return new BrowserLocalFile(options.file)
+        return new BlobFile(options.file)
     } else {
         throw Error("One of 'url', 'path (node only)', or 'file (browser only)' must be specified")
     }

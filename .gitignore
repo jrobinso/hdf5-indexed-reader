@@ -7,3 +7,4 @@
 /test/spleen_1chr1rep.indexed.cndb
 /test/testCNDBBig.js
 /webview/deploy.sh
+/dist/hdf5-indexed-reader.node.mjs

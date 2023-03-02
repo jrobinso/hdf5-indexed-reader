@@ -1,4 +1,4 @@
-class BrowserLocalFile {
+class BlobFile {
 
     constructor(blob) {
         this.file = blob
@@ -18,4 +18,4 @@ class BrowserLocalFile {
     }
 }
 
-export default BrowserLocalFile;
+export default BlobFile;

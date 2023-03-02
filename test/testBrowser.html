@@ -12,47 +12,47 @@
 
 <script type="module">
 
-    import {openH5File} from "../dist/hdf5-indexed-reader.esm.js"
+    //import {openH5File} from "../dist/hdf5-indexed-reader.esm.js"
+    import {openH5File} from "../src/index.js"
 
-    testCNDB({
+    const config = {
         url: "https://dl.dropboxusercontent.com/s/53fbs3le4a65noq/spleen_1chr1rep.indexed.cndb?dl=0"
-    })
-
-    async function loadH5File(config) {
-
-        const hdfFile = await openH5File(config)
-
-        // fetch root group
-        const rootGroup = await hdfFile.get('/')
-        const rootKeys = rootGroup.keys
-        let output = `root keys = ${rootKeys} </br>`
-
-        // fetch first group
-        const group = await hdfFile.get('/replica10_chr1')
-
-        // Genomic positions dataset
-        const genomicPosition = await group.get('genomic_position')
-        const gpValues = await genomicPosition.value
-        output += `genomic_position: # of elements = ${gpValues.length}  first = ${gpValues[0]}  last = ${gpValues[gpValues.length - 1]} <br/>`
-
-        // fetch spatial position group
-        const spatialPosition = await group.get('spatial_position')
-
-
-        // Spatial position keys (1 for each dataset)
-        const keys = spatialPosition.keys
-        output += `# of spatial_position datasets = ${spatialPosition.keys.length} <br/>`
-
-
-        // first dataset
-        const sp1 = await spatialPosition.get(keys[0])
-        const s1 = await sp1.shape
-        const t1 = await sp1.dtype
-        const values1 = await sp1.value
-        output += `dataset ${keys[0]}: shape = ${s1}, # of elements = ${values1.length}`
-
-        document.getElementById("textArea").innerHTML = output
     }
+
+
+    const hdfFile = await openH5File(config)
+
+    // fetch root group
+    const rootGroup = await hdfFile.get('/')
+    const rootKeys = rootGroup.keys
+    let output = `root keys = ${rootKeys} </br>`
+
+    // fetch first group
+    const group = await hdfFile.get('/replica10_chr1')
+
+    // Genomic positions dataset
+    const genomicPosition = await group.get('genomic_position')
+    const gpValues = await genomicPosition.value
+    output += `genomic_position: # of elements = ${gpValues.length}  first = ${gpValues[0]}  last = ${gpValues[gpValues.length - 1]} <br/>`
+
+    // fetch spatial position group
+    const spatialPosition = await group.get('spatial_position')
+
+
+    // Spatial position keys (1 for each dataset)
+    const keys = spatialPosition.keys
+    output += `# of spatial_position datasets = ${spatialPosition.keys.length} <br/>`
+
+
+    // first dataset
+    const sp1 = await spatialPosition.get(keys[0])
+    const s1 = await sp1.shape
+    const t1 = await sp1.dtype
+    const values1 = await sp1.value
+    output += `dataset ${keys[0]}: shape = ${s1}, # of elements = ${values1.length}`
+
+    document.getElementById("textArea").innerHTML = output
+
 </script>
 
 </body>

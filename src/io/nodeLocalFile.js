@@ -1,22 +1,10 @@
-import isNode from "./isNode.js"
-
-let fs
-if (isNode) {
-    fs = require('fs')
-} else {
-    fs = {
-        openSync: () => {throw Error("NodeLocalFile only supported in node.js environments")},
-        readSync: () => {throw Error("NodeLocalFile only supported in node.js environments")},
-        statSync: () => {throw Error("NodeLocalFile only supported in node.js environments")},
-    }
-}
+import fs from "fs"
 
 class NodeLocalFile {
 
     constructor(args) {
         this.path = args.path
     }
-
 
     async read(position, length) {
 
