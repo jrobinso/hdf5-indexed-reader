@@ -1,10 +1,3 @@
-const isNode =
-    typeof process !== 'undefined' &&
-    process.versions != null &&
-    process.versions.node != null;
-
-const crossFetch = isNode ? require("node-fetch") : fetch;
-
 class RemoteFile {
 
     constructor(args) {
@@ -34,7 +27,7 @@ class RemoteFile {
             url = addParameter(url, "key", this.config.apiKey);
         }
 
-        const response = await crossFetch(url, {
+        const response = await fetch(url, {
             method: 'GET',
             headers: headers,
             redirect: 'follow',

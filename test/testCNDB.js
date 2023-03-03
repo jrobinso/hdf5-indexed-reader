@@ -1,4 +1,4 @@
-import {openH5File} from "../src"
+import {openH5File} from "../src/index-node.js"
 import {assert} from "chai"
 
 async function testCNDB(config) {

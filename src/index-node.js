@@ -1,6 +1,9 @@
 import NodeLocalFile from "./io/nodeLocalFile.js"
 import { openH5File as _openH5File } from "./open.js"
 
+import node_fetch from "node-fetch"
+global.fetch = node_fetch
+
 /**
  * Override openH5File to support local file reading with node 'fs'*
  *

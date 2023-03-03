@@ -1,4 +1,4 @@
-import {testCNDB} from "./testCNDB"
+import {testCNDB} from "./testCNDB.js"
 
 suite("test", function () {
 

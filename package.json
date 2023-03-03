@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "npx rollup --config --bundleConfigAsCjs",
-    "test": "mocha -u tdd -r esm test/testCNDBRemote.js"
+    "test": "mocha -ui tdd  test/testCNDBRemote.js"
   },
   "repository": {
     "type": "git",

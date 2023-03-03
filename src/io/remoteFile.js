@@ -1,5 +1,3 @@
-import isNode from "./isNode.js"
-import crossFetch from "./crossFetch.js"
 
 class RemoteFile {
 
@@ -30,7 +28,7 @@ class RemoteFile {
             url = addParameter(url, "key", this.config.apiKey)
         }
 
-        const response = await crossFetch(url, {
+        const response = await fetch(url, {
             method: 'GET',
             headers: headers,
             redirect: 'follow',
