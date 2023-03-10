@@ -2,16 +2,13 @@
 
 ## Summary
 
-hdf-indexed-reader is a module for efficient querying of HDF5 files over the web.  It works in 
+hdf-indexed-reader is a module for efficient querying of HDF5 files over the web.   It enables loading of individual
+datasets from remote files without the need to load the entire file into memory.  It works in 
 conjunction with the companion project [hdf5-indexer](https://github.com/jrobinso/hdf5-indexer), which annotates
-HDF5 files with an index mapping object path names to file offsets.  The index is used to enable 
-direct loading of individual datasets without the need to load the entire file into memory.
+HDF5 files with an index mapping object path names to file offsets.
 
-This module will work with non-indexed HDF5 files, but much of the benefit is negated.
-
-The module is built on a fork of [jsfive](https://github.com/usnistgov/jsfive)
-modified to (1) use range requests to fetch slices of the remote file as needed, and (2) recognize and use the  embedded index if present.  The fork is available at
-https://github.com/jrobinso/hdf5-indexed-reader.  
+The module is built on a fork of [jsfive](https://github.com/usnistgov/jsfive). The fork is available at 
+https://github.com/jrobinso/hdf5-indexed-reader.
 
 ## Motivation
 
@@ -25,8 +22,9 @@ the web with available solutions present 2 problems
   These nodes can be located anywhere in the file, resulting in an explosion of http range requests which can quickly
   freeze the application.
 
-This project addresses these issues by supporting a pre-built index for mapping object (groups and datasets)
-paths to file offsets, allowing the use of range requests to directly load desired objects.
+This project addresses these issues by (1) using range queries to load slices of the file as needed, and (2) supporting 
+a pre-built index for mapping object (groups and datasets) paths to file offsets, negating the need to walking the
+linked list of container objects to build the index at runtime..
 
 
 ## Limitations
@@ -45,13 +43,19 @@ npm run install
 npm run build
 ```
 
+The build creates 3 packages
+
+* hdf5-indexed-reader.esm.js - an ES module for use in a web browser
+* hdf5-indexed-reader.node.cjs - a common JS module for use with Node
+* hdf5-indexed-reader.node.mjs - an ES module for use with Node 
+
 ## Usage
 
 The module exports a single function, ```openH5File( {options} )```.  The HDF5 file is specified with one of the following
 properties
 
 * url - url to the hdf5 file
-* path - local file path, `node` only
+* path - local file path, **Node only**
 * file - browser `File` or other `Blob` like object
 
 URL fetches are cached to avoid separate individual requests for small amounts of data.  The following optional properties controls
@@ -86,6 +90,8 @@ const values  = await spatialPostionDataset.value
 
 ```
 
-See unit test files in the "test" folder for more examples.
+See examples folder for node cjs and es examples.
+
+
 
 

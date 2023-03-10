@@ -24,4 +24,5 @@ async function openH5File(options) {
 }
 
 export {openH5File}
-export {unflattenIndex} from "./utils.js"
+
+

@@ -1,7 +1,4 @@
-import {openH5File} from "../src/open.js"
-import {unflattenIndex} from "../src/utils.js"
-
-import {testCNDB} from "./testCNDB"
+import {testCNDB} from "./testCNDB.js"
 
 suite("test", function () {
 
@@ -9,7 +6,7 @@ suite("test", function () {
         this.timeout(100000)
         const startTime = Date.now()
         // create HDF5 file object
-        const localConfig = {path: require.resolve("./spleen_1chr1rep.indexed.cndb")}
+        const localConfig = {path: "test/spleen_1chr1rep.indexed.cndb"}
         await testCNDB(localConfig)
         console.log(`cndb -- indexed -- local finished in ${Date.now() - startTime} ms`)
     })
@@ -19,7 +16,7 @@ suite("test", function () {
         const startTime = Date.now()
         // create HDF5 file object
         const localConfig = {
-            path: require.resolve("./spleen_1chr1rep.indexed.cndb"),
+            path: "test/spleen_1chr1rep.indexed.cndb",
             indexOffset: 602012432
         }
         await testCNDB(localConfig)
@@ -31,18 +28,9 @@ suite("test", function () {
         this.timeout(100000)
         const startTime = Date.now()
         // create HDF5 file object
-        const localConfig = {path: require.resolve("./spleen_1chr1rep.cndb")}
+        const localConfig = {path: "test/spleen_1chr1rep.cndb"}
         await testCNDB(localConfig)
         console.log(`cndb -- no index -- local finished in ${Date.now() - startTime} ms`)
     })
 
-    test("cndb -- unflatten index", async function () {
-
-        this.timeout(100000)
-
-        // create HDF5 file object
-        const config = {path: require.resolve("./spleen_1chr1rep.indexed.cndb")}
-        const hdfFile = await openH5File(config)
-        unflattenIndex(hdfFile.index)
-    })
 })

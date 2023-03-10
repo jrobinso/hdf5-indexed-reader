@@ -1,10 +1,8 @@
-/test/spleen_1chr1rep.cndb
 /package-lock.json
 /node_modules/
-/test/Rao2014-NHEK-MboI-allreps-filtered.500kb.hdf5
 /.idea/
-/test/spleen_full.index.json
-/test/spleen_1chr1rep.indexed.cndb
 /test/testCNDBBig.js
-/webview/deploy.sh
-/dist/hdf5-indexed-reader.node.mjs
+/h5-webview/deploy.sh
+/test/spleen_1chr1rep.indexed.cndb
+/test/spleen_1chr1rep.cndb
+/test/Rao2014-NHEK-MboI-allreps-filtered.500kb.hdf5

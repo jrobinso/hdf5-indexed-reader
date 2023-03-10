@@ -1,4 +1,6 @@
-import {openH5File} from "../src/index-node.js"
+//import {openH5File} from "../src/index-node.js"
+import {openH5File} from "../dist/hdf5-indexed-reader.node.cjs"
+
 import {assert} from "chai"
 
 async function testCNDB(config) {

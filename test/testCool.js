@@ -1,5 +1,5 @@
 import {assert} from 'chai'
-import {openH5File} from "../src/open.js"
+import {openH5File} from "../src/index-node.js"
 
 suite("test", function () {
 
@@ -40,7 +40,7 @@ suite("test", function () {
         this.timeout(100000)
 
         const config = {
-            path: require.resolve("./Rao2014-NHEK-MboI-allreps-filtered.500kb.indexed.hdf5")
+            path: "test/Rao2014-NHEK-MboI-allreps-filtered.500kb.indexed.hdf5"
         }
 
         const hdfFile = await openH5File(config)

@@ -6,26 +6,28 @@
 </head>
 <body>
 
-<h1>Test and demonstration of hdf5-indexedReader in a browser</h1>
+<h1>Demonstration of hdf5-indexed-reader in a browser</h1>
 
 <div id="textArea" style="width: 100%;  overflow: auto"></div>
 
 <script type="module">
 
-    //import {openH5File} from "../dist/hdf5-indexed-reader.esm.js"
-    import {openH5File} from "../src/index.js"
+    import {openH5File} from "../dist/hdf5-indexed-reader.esm.js"
 
     const config = {
         url: "https://dl.dropboxusercontent.com/s/53fbs3le4a65noq/spleen_1chr1rep.indexed.cndb?dl=0"
     }
 
+    let output = 'Opening file - please wait <br/>'
+    document.getElementById("textArea").innerHTML = output
 
     const hdfFile = await openH5File(config)
 
     // fetch root group
     const rootGroup = await hdfFile.get('/')
     const rootKeys = rootGroup.keys
-    let output = `root keys = ${rootKeys} </br>`
+    output = `root keys = ${rootKeys} <br/>`
+    document.getElementById("textArea").innerHTML = output
 
     // fetch first group
     const group = await hdfFile.get('/replica10_chr1')
@@ -34,15 +36,15 @@
     const genomicPosition = await group.get('genomic_position')
     const gpValues = await genomicPosition.value
     output += `genomic_position: # of elements = ${gpValues.length}  first = ${gpValues[0]}  last = ${gpValues[gpValues.length - 1]} <br/>`
+    document.getElementById("textArea").innerHTML = output
 
     // fetch spatial position group
     const spatialPosition = await group.get('spatial_position')
 
-
     // Spatial position keys (1 for each dataset)
     const keys = spatialPosition.keys
     output += `# of spatial_position datasets = ${spatialPosition.keys.length} <br/>`
-
+    document.getElementById("textArea").innerHTML = output
 
     // first dataset
     const sp1 = await spatialPosition.get(keys[0])
