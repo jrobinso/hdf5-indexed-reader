@@ -1,6 +1,6 @@
 {
   "name": "hdf5-indexed-reader",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Module based on jsfive for efficient remote access of very large HDF5 files",
   "module": "dist/hdf5-indexed-reader.esm.js",
   "type": "module",

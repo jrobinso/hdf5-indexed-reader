@@ -5,6 +5,11 @@ import {File} from "../node_modules/jsfive/dist/esm/index.mjs"
 
 async function openH5File(options) {
 
+    // Some clients (notably igv-webapp) pass a File reference in the url field.  Fix this
+    if(options.url && isBlob(options.url)) {
+        options.file = options.url
+        options.url = undefined
+    }
 
     const isRemote = options.url !== undefined
     let fileReader = options.reader ? options.reader : getReaderFor(options)
@@ -92,6 +97,10 @@ class AsyncBuffer {
 function getFilename(pathOrURL) {
     const idx = pathOrURL.lastIndexOf("/")
     return idx > 0 ? pathOrURL.substring(idx + 1) : pathOrURL
+}
+
+function isBlob(obj) {
+    return typeof obj.slice === 'function'
 }
 
 export {openH5File}
