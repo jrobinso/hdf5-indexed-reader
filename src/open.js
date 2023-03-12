@@ -6,7 +6,7 @@ import {File} from "../node_modules/jsfive/dist/esm/index.mjs"
 async function openH5File(options) {
 
     // Some clients (notably igv-webapp) pass a File reference in the url field.  Fix this
-    if(options.url && isBlob(options.url)) {
+    if(options.url && isBlobLike(options.url)) {
         options.file = options.url
         options.url = undefined
     }
@@ -99,8 +99,8 @@ function getFilename(pathOrURL) {
     return idx > 0 ? pathOrURL.substring(idx + 1) : pathOrURL
 }
 
-function isBlob(obj) {
-    return typeof obj.slice === 'function'
+function isBlobLike(obj) {
+    return typeof obj.slice === 'function' && typeof obj.arrayBuffer === 'function'
 }
 
 export {openH5File}
