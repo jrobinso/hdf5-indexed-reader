@@ -29,7 +29,7 @@ linked list of container objects to build the index at runtime..
 
 ## Limitations
 
-* As this project is based on `jsfive`,  some limitations of that tool apply here, namely not all datatypes are supported.
+* As this project is based on [jsfive](https://github.com/usnistgov/jsfive),  some limitations of that tool apply here, namely not all datatypes are supported.
 
 * This reader is designed for large HDF5 files containing many datasets.  Small files will likely not  
 benefit from indexing and incremental loading.  Additionally, the benefit of indexing is reduced if the number 
