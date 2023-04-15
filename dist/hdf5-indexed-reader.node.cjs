@@ -320,6 +320,13 @@ class BlobFile {
     }
 }
 
+var __defProp = Object.defineProperty;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __publicField = (obj, key, value) => {
+  __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+  return value;
+};
+
 // esm/core.js
 async function _unpack_struct_from_async(structure, async_buf, offset = 0) {
   var output = /* @__PURE__ */ new Map();
@@ -2966,14 +2973,17 @@ var AbstractBTree = class {
   }
 };
 var BTreeV1 = class extends AbstractBTree {
-  B_LINK_NODE = /* @__PURE__ */ new Map([
-    ["signature", "4s"],
-    ["node_type", "B"],
-    ["node_level", "B"],
-    ["entries_used", "H"],
-    ["left_sibling", "Q"],
-    ["right_sibling", "Q"]
-  ]);
+  constructor() {
+    super(...arguments);
+    __publicField(this, "B_LINK_NODE", /* @__PURE__ */ new Map([
+      ["signature", "4s"],
+      ["node_type", "B"],
+      ["node_level", "B"],
+      ["entries_used", "H"],
+      ["left_sibling", "Q"],
+      ["right_sibling", "Q"]
+    ]));
+  }
   async _read_node_header(offset, node_level) {
     let node = await _unpack_struct_from_async(this.B_LINK_NODE, this.fh, offset);
     if (node_level != null) {
@@ -2985,9 +2995,9 @@ var BTreeV1 = class extends AbstractBTree {
   }
 };
 var BTreeV1Groups = class extends BTreeV1 {
-  NODE_TYPE = 0;
   constructor(fh, offset) {
     super(fh, offset);
+    __publicField(this, "NODE_TYPE", 0);
     this.ready = this.init();
   }
   async _read_node(offset, node_level) {
@@ -3019,9 +3029,9 @@ var BTreeV1Groups = class extends BTreeV1 {
   }
 };
 var BTreeV1RawDataChunks = class extends BTreeV1 {
-  NODE_TYPE = 1;
   constructor(fh, offset, dims) {
     super(fh, offset);
+    __publicField(this, "NODE_TYPE", 1);
     this.dims = dims;
     this.ready = this.init();
   }
@@ -3167,26 +3177,26 @@ var BTreeV1RawDataChunks = class extends BTreeV1 {
   }
 };
 var BTreeV2 = class extends AbstractBTree {
-  B_TREE_HEADER = /* @__PURE__ */ new Map([
-    ["signature", "4s"],
-    ["version", "B"],
-    ["node_type", "B"],
-    ["node_size", "I"],
-    ["record_size", "H"],
-    ["depth", "H"],
-    ["split_percent", "B"],
-    ["merge_percent", "B"],
-    ["root_address", "Q"],
-    ["root_nrecords", "H"],
-    ["total_nrecords", "Q"]
-  ]);
-  B_LINK_NODE = /* @__PURE__ */ new Map([
-    ["signature", "4s"],
-    ["version", "B"],
-    ["node_type", "B"]
-  ]);
   constructor(fh, offset) {
     super(fh, offset);
+    __publicField(this, "B_TREE_HEADER", /* @__PURE__ */ new Map([
+      ["signature", "4s"],
+      ["version", "B"],
+      ["node_type", "B"],
+      ["node_size", "I"],
+      ["record_size", "H"],
+      ["depth", "H"],
+      ["split_percent", "B"],
+      ["merge_percent", "B"],
+      ["root_address", "Q"],
+      ["root_nrecords", "H"],
+      ["total_nrecords", "Q"]
+    ]));
+    __publicField(this, "B_LINK_NODE", /* @__PURE__ */ new Map([
+      ["signature", "4s"],
+      ["version", "B"],
+      ["node_type", "B"]
+    ]));
     this.ready = this.init();
   }
   async _read_root_node() {
@@ -3312,7 +3322,10 @@ var BTreeV2 = class extends AbstractBTree {
   }
 };
 var BTreeV2GroupNames = class extends BTreeV2 {
-  NODE_TYPE = 5;
+  constructor() {
+    super(...arguments);
+    __publicField(this, "NODE_TYPE", 5);
+  }
   async _parse_record(buf, offset, size) {
     let namehash = (await struct.unpack_from_async("<I", buf, offset))[0];
     offset += 4;
@@ -3321,7 +3334,10 @@ var BTreeV2GroupNames = class extends BTreeV2 {
   }
 };
 var BTreeV2GroupOrders = class extends BTreeV2 {
-  NODE_TYPE = 6;
+  constructor() {
+    super(...arguments);
+    __publicField(this, "NODE_TYPE", 6);
+  }
   async _parse_record(buf, offset, size) {
     let creationorder = (await struct.unpack_from_async("<Q", buf, offset))[0];
     offset += 8;
@@ -4755,7 +4771,7 @@ var Dataset = class extends Array {
   }
   async getValue(data) {
     const dtype = await this.dtype;
-    if (dtype.startsWith("S")) {
+    if ((typeof dtype === "string" || dtype instanceof String) && dtype.startsWith("S")) {
       return (await data).map((s) => s.substr(0, s.indexOf("\0")));
     } else {
       return data;
