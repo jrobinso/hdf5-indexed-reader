@@ -1,6 +1,6 @@
 {
   "name": "hdf5-indexed-reader",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "Module based on jsfive for efficient remote access of very large HDF5 files",
   "module": "dist/hdf5-indexed-reader.esm.js",
   "type": "module",
@@ -25,14 +25,13 @@
     "url": "https://github.com/jrobinsohdf5-indexed-reader/issues"
   },
   "homepage": "https://github.com/jrobinsohdf5-indexed-reader",
-
   "devDependencies": {
+    "chai": "^4.2.0",
+    "jsfive": "github:jrobinso/jsfive#v0.4.1",
+    "mocha": "^10.2.0",
     "node": "^19.4.0",
     "node-fetch": "^2.6.0",
-    "chai": "^4.2.0",
-    "mocha": "^8.1.3",
-    "rollup": "^3.10.0",
-    "jsfive": "github:jrobinso/jsfive#v0.4.0"
+    "rollup": "^3.10.0"
   },
   "publishConfig": {
     "access": "public"

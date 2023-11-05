@@ -441,7 +441,7 @@ var Struct = class {
     return big_endian;
   }
   async unpack_from_async(fmt, async_buf, offset) {
-    var offset = Number(offset || 0);
+    offset = Number.parseInt(offset || 0);
     const total_size = this.calcsize(fmt);
     const local_buffer = await async_buf.slice(offset, offset + total_size);
     let local_offset = 0;
@@ -468,7 +468,7 @@ var Struct = class {
     return output;
   }
   unpack_from(fmt, buffer, offset) {
-    var offset = Number(offset || 0);
+    offset = Number.parseInt(offset || 0);
     const total_size = this.calcsize(fmt);
     const local_buffer = buffer.slice(offset, offset + total_size);
     let local_offset = 0;
@@ -506,7 +506,7 @@ var DataView64 = class extends DataView {
     const left = BigInt(this.getUint32(byteOffset, littleEndian));
     const right = BigInt(this.getUint32(byteOffset + 4, littleEndian));
     let combined = littleEndian ? left + (right << 32n) : (left << 32n) + right;
-    return Number(combined);
+    return Number.parseInt(combined);
   }
   getInt64(byteOffset, littleEndian) {
     var low, high;
@@ -518,7 +518,7 @@ var DataView64 = class extends DataView {
       low = this.getUint32(byteOffset + 4, false);
     }
     let combined = BigInt(low) + (BigInt(high) << 32n);
-    return Number(combined);
+    return Number.parseInt(combined);
   }
   getString(byteOffset, littleEndian, length) {
     const str_buffer = this.buffer.slice(byteOffset, byteOffset + length);
@@ -3068,7 +3068,7 @@ var BTreeV1RawDataChunks = class extends BTreeV1 {
         if (size != 8) {
           throw "NotImplementedError('Unsupported Reference type')";
         }
-        var dtype = "<u8";
+        dtype = "<u8";
         item_getter = "getUint64";
         item_big_endian = false;
         item_size = 8;
