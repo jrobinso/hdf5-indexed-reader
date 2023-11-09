@@ -1,11 +1,10 @@
 {
   "name": "hdf5-indexed-reader",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "Module based on jsfive for efficient remote access of very large HDF5 files",
   "module": "dist/hdf5-indexed-reader.esm.js",
   "type": "module",
   "scripts": {
-    "prepare": "npm run build",
     "build": "npx rollup --config --bundleConfigAsCjs",
     "test": "npm run build && mocha -ui tdd  test/testCNDBRemote.js"
   },
