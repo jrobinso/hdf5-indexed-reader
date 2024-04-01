@@ -6,11 +6,8 @@ suite("test", function () {
 
     test("chromosome names", async function () {
 
-        this.timeout(1000000)
-
-        const config = {
-            url: "https://www.dropbox.com/scl/fi/ccxmiwzc5d3sj8lfksl5h/vcf_cnv_issue1788.pytor?rlkey=73arprap9fzxwq4zidd3vddmr&dl=0"
-        }
+        this.timeout(100000)
+        const config = {path: "test/vcf_cnv.pytor"}
 
         const hdfFile = await openH5File(config)
 

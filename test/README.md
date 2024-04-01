@@ -9,4 +9,7 @@ files
 
 [Rao2014-NHEK-MboI-allreps-filtered.500kb.indexed.hdf5](https://www.dropbox.com/s/sa6x4xu153joc13/Rao2014-NHEK-MboI-allreps-filtered.500kb.indexed.hdf5?dl=0)
 
+[vcf_cnv.pytor](https://www.dropbox.com/scl/fi/ccxmiwzc5d3sj8lfksl5h/vcf_cnv.pytor?rlkey=73arprap9fzxwq4zidd3vddmr&dl=0)
+
+
 and save in the "test" folder.
