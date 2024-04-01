@@ -21,9 +21,9 @@
   "author": "Jim Robinson",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/jrobinsohdf5-indexed-reader/issues"
+    "url": "https://github.com/jrobinso/hdf5-indexed-reader/issues"
   },
-  "homepage": "https://github.com/jrobinsohdf5-indexed-reader",
+  "homepage": "https://github.com/jrobinso/hdf5-indexed-reader",
   "devDependencies": {
     "chai": "^4.2.0",
     "jsfive": "github:jrobinso/jsfive#v0.4.2",
