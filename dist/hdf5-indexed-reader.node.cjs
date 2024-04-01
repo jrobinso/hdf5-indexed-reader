@@ -4772,7 +4772,10 @@ var Dataset = class extends Array {
   async getValue(data) {
     const dtype = await this.dtype;
     if ((typeof dtype === "string" || dtype instanceof String) && dtype.startsWith("S")) {
-      return (await data).map((s) => s.substr(0, s.indexOf("\0")));
+      return (await data).map((s) => {
+        let idx = s.indexOf("\0");
+        return idx >= 0 ? s.substring(0, idx) : s;
+      });
     } else {
       return data;
     }
