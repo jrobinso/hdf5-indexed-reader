@@ -1,4 +1,7 @@
 import {testCNDB} from "./testCNDB.js"
+import sinon from 'sinon'
+import { expect } from 'chai';
+import {openH5File} from "../dist/hdf5-indexed-reader.node.cjs"
 
 suite("test", function () {
 
@@ -34,5 +37,37 @@ suite("test", function () {
         console.log(`cndb - external index -- local finished in ${Date.now() - startTime} ms`)
 
     })
+
+    test("cndb - remote -- oauth", async function () {
+      // Confirm that remoteFile uses proper OAuth token in "Authorization"
+      // header.  This is a regression test; previously, remoteFile passed
+      // an unresolved promise as the Authorization bearer token value.
+
+      const fetchStub = sinon.stub(global, 'fetch');
+
+      // Arrange: Mock the fetch response
+      fetchStub.resolves({
+        status: 200
+      });
+
+      // Create HDF5 file
+      const config = {
+          url: "https://cloud.test/file-needing-authentication.h5ad",
+          oauthToken: "expected-oauth-token"
+      }
+
+      try {
+        await openH5File(config)
+      } catch (e) {
+        // This avoids the need for extensive mocking, while enabling
+        // us to test remoteFile handling with fidelity and isolation.
+      }
+
+      const callArgs = fetchStub.getCall(0).args
+      const actualHeaders = callArgs[1].headers
+      expect(actualHeaders.Authorization).to.equal('Bearer expected-oauth-token')
+
+      fetchStub.restore();
+  })
 
 })
