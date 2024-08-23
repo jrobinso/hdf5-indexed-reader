@@ -19,7 +19,7 @@ class RemoteFile {
 
         let url = this.url.slice();    // slice => copy
         if (this.config.oauthToken) {
-            const token = resolveToken(this.config.oauthToken);
+            const token = await resolveToken(this.config.oauthToken);
             headers['Authorization'] = `Bearer ${token}`;
         }
 
