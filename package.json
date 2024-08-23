@@ -1,16 +1,19 @@
 {
   "name": "hdf5-indexed-reader",
-  "version": "0.5.6",
+  "version": "1.0.1",
   "description": "Module based on jsfive for efficient remote access of very large HDF5 files",
   "module": "dist/hdf5-indexed-reader.esm.js",
   "type": "module",
+  "files": [
+    "dist/**"
+  ],
   "scripts": {
     "build": "npx rollup --config --bundleConfigAsCjs",
     "test": "npm run build && mocha -ui tdd  test/testCNDBRemote.js"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/jrobinsohdf5-indexed-reader"
+    "url": "https://github.com/jrobinso/hdf5-indexed-reader"
   },
   "keywords": [
     "hdf5",
