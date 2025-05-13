@@ -1,7 +1,6 @@
 /package-lock.json
 /node_modules/
 /.idea/
-/test/testCNDBBig.js
 /h5-webview/deploy.sh
 /test/spleen_1chr1rep.indexed.cndb
 /test/spleen_1chr1rep.cndb

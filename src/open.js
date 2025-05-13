@@ -36,26 +36,30 @@ async function openH5File(options) {
 
 async function readExternalIndex(options) {
 
-    let indexReader
-    if(options.indexReader) {
-        indexReader = options.indexReader
-    }
-    else if(options.index) {
+    if (options.index) {
         return options.index
-    } else if (options.indexURL) {
-        indexReader = new RemoteFile({url: options.indexURL})
-    } else if (options.indexPath) {
-        indexReader = new NodeLocalFile({path: options.indexPath})
-    } else if (options.indexFile) {
-        indexReader = new BlobFile({file: options.indexFile})
-    }
-    if (indexReader) {
+    } else {
+        let indexReader
+        if (options.indexReader) {
+            indexReader = options.indexReader
+        } else {
+            let indexOptions
+            if (options.indexURL) {
+                indexOptions = Object.assign({url: options.indexURL}, options)
+            } else if (options.indexPath) {
+                indexOptions = Object.assign({path: options.indexPath}, options)
+            } else if (options.indexFile) {
+                indexOptions = Object.assign({file: options.indexFile}, options)
+            } else {
+                return undefined
+            }
+            indexReader = getReaderFor(indexOptions)
+        }
         const indexFileContents = await indexReader.read()
         const indexFileJson = new TextDecoder().decode(indexFileContents)
         return JSON.parse(indexFileJson)
-    } else {
-        return undefined
     }
+
 }
 
 
